@@ -1,18 +1,15 @@
-use std::{sync::MutexGuard, thread::LocalKey};
-
 use actix_session::Session;
 use actix_web::{
-    post,
     web::{self, Json},
     HttpResponse, Responder,
 };
 
-use lettre::{
-    transport::smtp::authentication::Credentials, AsyncSmtpTransport, Message, Tokio1Executor,
-};
-use serde_json::json;
+use lettre::{transport::smtp::authentication::Credentials, AsyncSmtpTransport, Tokio1Executor};
 
-use crate::AppState;
+use crate::{
+    constants::{auth_email_string, auth_password_string},
+    AppState,
+};
 
 use super::models::SignInMessage;
 
@@ -42,7 +39,8 @@ async fn sign_in(
     let smtp_test = smtp_session.test_connection().await;
 
     if let Err(smtp_error) = &smtp_test {
-        return HttpResponse::Unauthorized().body(format!{"SMTP error: {}",smtp_error.to_string()});
+        return HttpResponse::Unauthorized()
+            .body(format! {"SMTP error: {}",smtp_error.to_string()});
     }
 
     // Enable IMAP session
@@ -56,7 +54,8 @@ async fn sign_in(
         .map_err(|e| e.0);
 
     if let Err(imap_error) = &imap_session {
-        return HttpResponse::Unauthorized().body(format!{"IMAP error: {}",imap_error.to_string()});
+        return HttpResponse::Unauthorized()
+            .body(format! {"IMAP error: {}",imap_error.to_string()});
     }
 
     if let Ok(new_session) = imap_session {
@@ -71,39 +70,34 @@ async fn sign_in(
         if let Some(ref current_smtp_session) = data.smtp_session {
             *current_smtp_session.lock().await = smtp_session;
         }
-       
+
         // Save email and password to session
-        let mut result = session.insert("user_email", cred_values.email);
+        let mut result = session.insert(auth_email_string, cred_values.email);
         if let Err(error) = result {
-            println!("Email add to session error: {}", error);
+            return HttpResponse::Unauthorized()
+                .body(format!("Email add to session error: {}", error));
         }
 
-        result = session.insert("user_password", cred_values.password);
+        result = session.insert(auth_password_string, cred_values.password);
         if let Err(error) = result {
-            println!("Password add to session error: {}", error);
+            return HttpResponse::Unauthorized()
+                .body(format!("Password add to session error: {}", error));
         }
 
         println!("Session status: {:?}", session.status());
         println!("Session entries: {:?}", session.entries());
 
         HttpResponse::Ok().body("IMAP and SMTP sessions created")
-    }
-    else {
+    } else {
         HttpResponse::Unauthorized().body("Failed to establish sessions")
     }
-
-    
 }
 
 async fn sign_out(session: Session) -> impl Responder {
     println!("Session status: {:?}", session.status());
     println!("Session entries: {:?}", session.entries());
-
-    let email_result = session.get::<String>("user_email");
-
-    if let Err(email_err) = &email_result {
-        println!("Session error: {}", email_err);
-    }
+    
+    let email_result = session.get::<String>(auth_email_string);
 
     if let Ok(Some(_)) = email_result {
         session.purge();

@@ -1,18 +1,24 @@
-use actix_session::{config::{PersistentSession, CookieContentSecurity}, storage::CookieSessionStore, SessionMiddleware};
+use actix_session::{
+    config::{CookieContentSecurity, PersistentSession},
+    storage::CookieSessionStore,
+    SessionMiddleware,
+};
 use actix_web::{
     cookie::{time::Duration, Key},
     web, App, HttpResponse, HttpServer,
 };
+use constants::auth_cookie_name;
+use dotenv::dotenv;
 use handlers::auth::auth::auth_config;
 use imap::Session;
 use lettre::{AsyncSmtpTransport, Tokio1Executor};
 use native_tls::TlsStream;
-use serde::__private::de::IdentifierDeserializer;
-use std::{net::TcpStream, env};
+use std::{env, net::TcpStream};
 use tokio::sync::Mutex;
-use dotenv::dotenv;
 
+mod constants;
 mod handlers;
+mod utils;
 
 pub struct AppState {
     imap_session: Option<Mutex<Session<TlsStream<TcpStream>>>>,
@@ -22,7 +28,12 @@ pub struct AppState {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
-    let secret_key: Key = Key::derive_from(env::var("ENCRYPTION_KEY").expect("DATABASE_URL must be set").to_string().as_bytes());
+    let secret_key: Key = Key::derive_from(
+        env::var("ENCRYPTION_KEY")
+            .expect("ENCRYPTION_KEY must be set")
+            .to_string()
+            .as_bytes(),
+    );
 
     HttpServer::new(move || {
         App::new()
@@ -32,6 +43,7 @@ async fn main() -> anyhow::Result<()> {
                     .cookie_http_only(false)
                     .cookie_content_security(CookieContentSecurity::Private)
                     .session_lifecycle(PersistentSession::default().session_ttl(Duration::hours(2)))
+                    .cookie_name(auth_cookie_name.to_string())
                     .build(),
             )
             .configure(app_config)

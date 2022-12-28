@@ -17,3 +17,4 @@ anyhow = { version = "1" }
 lettre = { version = "0.10.1", default-features = false, features = [ "smtp-transport", "tokio1", "tokio1-native-tls", "builder" ] }
 imap = "2.4.1"
 native-tls = "0.2.11"
+futures-util = "0.3.25"
