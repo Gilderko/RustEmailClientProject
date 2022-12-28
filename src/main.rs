@@ -15,6 +15,7 @@ use lettre::{AsyncSmtpTransport, Tokio1Executor};
 use native_tls::TlsStream;
 use std::{env, net::TcpStream};
 use tokio::sync::Mutex;
+use utils::auth_guards::AuthGuardFactory;
 
 mod constants;
 mod handlers;
@@ -41,11 +42,12 @@ async fn main() -> anyhow::Result<()> {
                 SessionMiddleware::builder(CookieSessionStore::default(), secret_key.clone())
                     .cookie_secure(false)
                     .cookie_http_only(false)
-                    .cookie_content_security(CookieContentSecurity::Private)
+                    .cookie_content_security(CookieContentSecurity::Signed)
                     .session_lifecycle(PersistentSession::default().session_ttl(Duration::hours(2)))
                     .cookie_name(auth_cookie_name.to_string())
                     .build(),
             )
+            .wrap(AuthGuardFactory)
             .configure(app_config)
             .service(web::scope("/api").configure(auth_config))
             .app_data(web::Data::new(AppState {

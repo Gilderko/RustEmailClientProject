@@ -96,7 +96,7 @@ async fn sign_in(
 async fn sign_out(session: Session) -> impl Responder {
     println!("Session status: {:?}", session.status());
     println!("Session entries: {:?}", session.entries());
-    
+
     let email_result = session.get::<String>(auth_email_string);
 
     if let Ok(Some(_)) = email_result {
