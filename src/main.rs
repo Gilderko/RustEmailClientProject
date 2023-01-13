@@ -9,7 +9,7 @@ use actix_web::{
 };
 use constants::auth_cookie_name;
 use dotenv::dotenv;
-use handlers::{auth::auth::auth_config, email::email_smtp::email_config};
+use handlers::{auth::auth::auth_config, email::{email_smtp::email_smtp_config, email_imap::email_imap_config}};
 use imap::Session;
 use lettre::{AsyncSmtpTransport, Tokio1Executor};
 use native_tls::TlsStream;
@@ -47,7 +47,8 @@ async fn main() -> anyhow::Result<()> {
             .service(web::scope("/auth").configure(auth_config))
             .service(
                 web::scope("/api")
-                    .configure(email_config)
+                    .configure(email_smtp_config)
+                    .configure(email_imap_config)
                     .wrap(AuthGuardFactory),
             )
     })

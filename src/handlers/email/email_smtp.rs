@@ -14,7 +14,7 @@ use super::models::EmailInDTO;
 
 async fn send_email(mut payload: Multipart, session: Session) -> Result<HttpResponse, Error> {
     // Check the session
-    let sess_values = check_is_valid_session(&session).unwrap();
+    let sess_values = check_is_valid_session(&session)?;
 
     // Create initial email struct
     let mut email_struct = EmailInDTO {
@@ -43,7 +43,7 @@ async fn send_email(mut payload: Multipart, session: Session) -> Result<HttpResp
                         .await??;
             }
         } else {
-            let field_value = field.next().await.unwrap().unwrap();
+            let field_value = field.next().await.unwrap()?;
             match field.content_disposition().get_name().unwrap() {
                 "to_address" => {
                     println!("to_address");
@@ -84,6 +84,6 @@ async fn send_email(mut payload: Multipart, session: Session) -> Result<HttpResp
     Ok(HttpResponse::Ok().body("Ok"))
 }
 
-pub fn email_config(cfg: &mut web::ServiceConfig) {
+pub fn email_smtp_config(cfg: &mut web::ServiceConfig) {
     cfg.service(web::resource("/email/send").route(web::post().to(send_email)));
 }
