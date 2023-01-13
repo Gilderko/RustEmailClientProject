@@ -9,7 +9,7 @@ use actix_web::{
 };
 use constants::auth_cookie_name;
 use dotenv::dotenv;
-use handlers::auth::auth::auth_config;
+use handlers::{auth::auth::auth_config, email::email_smtp::email_config};
 use imap::Session;
 use lettre::{AsyncSmtpTransport, Tokio1Executor};
 use native_tls::TlsStream;
@@ -20,11 +20,6 @@ use utils::auth_guards::AuthGuardFactory;
 mod constants;
 mod handlers;
 mod utils;
-
-pub struct AppState {
-    imap_session: Option<Mutex<Session<TlsStream<TcpStream>>>>,
-    smtp_session: Option<Mutex<AsyncSmtpTransport<Tokio1Executor>>>,
-}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -47,13 +42,14 @@ async fn main() -> anyhow::Result<()> {
                     .cookie_name(auth_cookie_name.to_string())
                     .build(),
             )
-            .wrap(AuthGuardFactory)
+            //.wrap(AuthGuardFactory)
             .configure(app_config)
-            .service(web::scope("/api").configure(auth_config))
-            .app_data(web::Data::new(AppState {
-                imap_session: None,
-                smtp_session: None,
-            }))
+            .service(web::scope("/auth").configure(auth_config))
+            .service(
+                web::scope("/api")
+                    .configure(email_config)
+                    .wrap(AuthGuardFactory),
+            )
     })
     .bind(("127.0.0.1", 8080))?
     .run()

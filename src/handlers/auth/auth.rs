@@ -4,73 +4,40 @@ use actix_web::{
     HttpResponse, Responder,
 };
 
-use lettre::{transport::smtp::authentication::Credentials, AsyncSmtpTransport, Tokio1Executor};
-
 use crate::{
     constants::{auth_email_string, auth_password_string},
-    AppState,
+    utils::utils_transports::{create_imap_session, create_smtp_transport},
 };
 
 use super::models::SignInMessage;
 
-async fn sign_in(
-    data: web::Data<AppState>,
-    credentials: Json<SignInMessage>,
-    session: Session,
-) -> impl Responder {
+async fn sign_in(credentials: Json<SignInMessage>, session: Session) -> impl Responder {
     println!("Trying to sign in");
-
     let cred_values = credentials.into_inner();
-    let creds = Credentials::new(
-        cred_values.email.to_string(),
-        cred_values.password.to_string(),
-    );
 
     println!("Credentials {:?}", cred_values);
-    let smtp_domain = "smtp.gmail.com";
-    let imap_domain = "imap.gmail.com";
+    let smtp_domain = "smtp.gmail.com".to_string();
+    let imap_domain = "imap.gmail.com".to_string();
 
     // Enable SMTP session
-    let smtp_session: AsyncSmtpTransport<Tokio1Executor> =
-        AsyncSmtpTransport::<Tokio1Executor>::relay(smtp_domain)
-            .unwrap()
-            .credentials(creds)
-            .build();
-    let smtp_test = smtp_session.test_connection().await;
+    let smtp_session =
+        create_smtp_transport(&cred_values.email, &cred_values.password, &smtp_domain).await;
 
-    if let Err(smtp_error) = &smtp_test {
+    if let Err(smtp_error) = &smtp_session {
         return HttpResponse::Unauthorized()
             .body(format! {"SMTP error: {}",smtp_error.to_string()});
     }
 
     // Enable IMAP session
-    let tls = native_tls::TlsConnector::builder().build().unwrap();
-    let client = imap::connect((imap_domain, 993), imap_domain, &tls).unwrap();
-    let imap_session = client
-        .login(
-            cred_values.email.to_string(),
-            cred_values.password.to_string(),
-        )
-        .map_err(|e| e.0);
+    let imap_session =
+        create_imap_session(&cred_values.email, &cred_values.password, &imap_domain).await;
 
     if let Err(imap_error) = &imap_session {
         return HttpResponse::Unauthorized()
             .body(format! {"IMAP error: {}",imap_error.to_string()});
     }
 
-    if let Ok(new_session) = imap_session {
-        // Logout and save IMAP session into app state
-        if let Some(ref current_imap_session) = data.imap_session {
-            let mut locked_imap_session = current_imap_session.lock().await;
-            locked_imap_session.logout();
-            *locked_imap_session = new_session;
-        }
-
-        // Save SMTP session into app state
-        if let Some(ref current_smtp_session) = data.smtp_session {
-            *current_smtp_session.lock().await = smtp_session;
-        }
-
+    if let (Ok(mut imap), Ok(_)) = (imap_session, smtp_session) {
         // Save email and password to session
         let mut result = session.insert(auth_email_string, cred_values.email);
         if let Err(error) = result {
@@ -87,6 +54,7 @@ async fn sign_in(
         println!("Session status: {:?}", session.status());
         println!("Session entries: {:?}", session.entries());
 
+        imap.logout().unwrap();
         HttpResponse::Ok().body("IMAP and SMTP sessions created")
     } else {
         HttpResponse::Unauthorized().body("Failed to establish sessions")
@@ -108,6 +76,6 @@ async fn sign_out(session: Session) -> impl Responder {
 }
 
 pub fn auth_config(cfg: &mut web::ServiceConfig) {
-    cfg.service(web::resource("/auth/sign-in").route(web::post().to(sign_in)))
-        .service(web::resource("/auth/sign-out").route(web::post().to(sign_out)));
+    cfg.service(web::resource("sign-in").route(web::post().to(sign_in)))
+        .service(web::resource("sign-out").route(web::post().to(sign_out)));
 }

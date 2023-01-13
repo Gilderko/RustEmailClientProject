@@ -1,7 +1,6 @@
 use std::io::{Error, ErrorKind};
 
 use actix_session::Session;
-
 use crate::{
     constants::{auth_email_string, auth_password_string},
     handlers::auth::models::SignInMessage,
@@ -20,3 +19,5 @@ pub fn check_is_valid_session(session: &Session) -> Result<SignInMessage, Error>
         Err(Error::new(ErrorKind::Other, "Unauthenticated"))
     }
 }
+
+

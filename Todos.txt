@@ -1,0 +1,8 @@
+Endpoints for:
+	- send message
+	- list messages
+		- received
+		- sent
+	- get message in detail
+	- delete message from inbox
+	
