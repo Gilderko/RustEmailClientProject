@@ -1,5 +1,6 @@
 use actix_session::Session;
 use actix_web::{web, Error, HttpResponse, Responder};
+use imap::types::Fetch;
 
 use crate::utils::{utils_session::check_is_valid_session, utils_transports::create_imap_session};
 
@@ -20,7 +21,7 @@ async fn list_emails_from_inbox(session: Session) -> Result<HttpResponse, Error>
     )
     .await
     .unwrap();
-
+    
     let mailbox_info = imap_session.select("INBOX").unwrap();
     println!("Mailbox info: \nEmails: {}", mailbox_info.exists);
     let start_number = mailbox_info.exists;
@@ -29,7 +30,7 @@ async fn list_emails_from_inbox(session: Session) -> Result<HttpResponse, Error>
     let messages = imap_session
         .fetch(
             format!("{}:{}", end_number, start_number),
-            "(FLAGS BODY[TEXT] RFC822.SIZE ENVELOPE)",
+            "(FLAGS BODYSTRUCTURE BODY[TEXT] RFC822.SIZE ENVELOPE)",
         )
         .unwrap();
     for message in messages.into_iter() {
@@ -44,12 +45,63 @@ async fn list_emails_from_inbox(session: Session) -> Result<HttpResponse, Error>
         let body = std::str::from_utf8(body)
             .expect("message was not valid utf-8")
             .to_string();
-
-        println!("Message sender: {}\nMessage body: \n{}", sender, body);
+        println!("Root message processing");
+        println!("Message sender: {}\nMessage body: \n{}", sender, "body");
+        
+        let structure = message.bodystructure().unwrap();
+        describe_structure(structure, message);
     }
 
     imap_session.logout();
     Ok(HttpResponse::Ok().body("Ok"))
+}
+
+fn describe_structure(structure: &imap_proto::BodyStructure, message: &Fetch) {
+    match structure {
+        imap_proto::BodyStructure::Basic {
+            common,
+            other,
+            extension,
+        } => 
+        {
+            println!("Basic body structure");
+            println!("BodyContentCommon: {:?}, BodyContentSinglePart: {:?}",common, other);
+        }
+        imap_proto::BodyStructure::Text {
+            common,
+            other,
+            lines,
+            extension,
+        } => {
+            println!("Text body structure");
+            println!("BodyContentCommon: {:?}, BodyContentSinglePart: {:?}, Lines {}",common, other, lines);
+        }
+        imap_proto::BodyStructure::Message {
+            common,
+            other,
+            envelope,
+            body,
+            lines,
+            extension,
+        } => {
+            println!("Message body structure");
+            println!("BodyContentCommon: {:?}, BodyContentSinglePart: {:?}, Envelope: {:?}, Lines {}",common, other, envelope, lines);
+        }
+        imap_proto::BodyStructure::Multipart {
+            common,
+            bodies,
+            extension,
+        } => 
+        {
+            println!("Multipart body structure");
+            println!("BodyContentCommon: {:?}", common);
+            for body in bodies {
+                describe_structure(body, message);
+                println!("Next header equal depth");
+            }
+            println!("Recursion comming out");
+        }
+    }
 }
 
 async fn download_attachment_from_email(session: Session) -> impl Responder {

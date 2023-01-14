@@ -16,7 +16,9 @@ actix-session = { version = "0.7.2", features = ["cookie-session"] }
 anyhow = { version = "1" }
 lettre = { version = "0.10.1", default-features = false, features = [ "smtp-transport", "tokio1", "tokio1-native-tls", "builder" ] }
 imap = "2.4.1"
+imap-proto = "0.10.2"
 native-tls = "0.2.11"
 futures-util = "0.3.25"
 actix-multipart = "0.4.0"
 lettre_email = "0.9"
+chrono = "0.4.23"
