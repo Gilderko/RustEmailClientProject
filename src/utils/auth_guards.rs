@@ -10,7 +10,7 @@ use actix_web::{
 };
 use futures_util::future::LocalBoxFuture;
 
-use crate::constants::auth_cookie_name;
+use crate::constants::AUTH_COOKIE_NAME;
 
 // There are two steps in middleware processing.
 // 1. Middleware initialization, middleware factory gets called with
@@ -55,7 +55,7 @@ where
     dev::forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        if let Some(_) = req.cookie(auth_cookie_name) {
+        if let Some(_) = req.cookie(AUTH_COOKIE_NAME) {
             println!("Got cookie");
             let fut = self.service.call(req);
             Box::pin(async move { fut.await })

@@ -5,7 +5,7 @@ use actix_web::{
 };
 
 use crate::{
-    constants::{auth_email_string, auth_password_string},
+    constants::{AUTH_EMAIL_STRING, AUTH_PASSWORD_STRING},
     utils::utils_transports::{create_imap_session, create_smtp_transport},
 };
 
@@ -39,13 +39,13 @@ async fn sign_in(credentials: Json<SignInMessage>, session: Session) -> impl Res
 
     if let (Ok(mut imap), Ok(_)) = (imap_session, smtp_session) {
         // Save email and password to session
-        let mut result = session.insert(auth_email_string, cred_values.email);
+        let mut result = session.insert(AUTH_EMAIL_STRING, cred_values.email);
         if let Err(error) = result {
             return HttpResponse::Unauthorized()
                 .body(format!("Email add to session error: {}", error));
         }
 
-        result = session.insert(auth_password_string, cred_values.password);
+        result = session.insert(AUTH_PASSWORD_STRING, cred_values.password);
         if let Err(error) = result {
             return HttpResponse::Unauthorized()
                 .body(format!("Password add to session error: {}", error));
@@ -65,7 +65,7 @@ async fn sign_out(session: Session) -> impl Responder {
     println!("Session status: {:?}", session.status());
     println!("Session entries: {:?}", session.entries());
 
-    let email_result = session.get::<String>(auth_email_string);
+    let email_result = session.get::<String>(AUTH_EMAIL_STRING);
 
     if let Ok(Some(_)) = email_result {
         session.purge();

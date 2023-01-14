@@ -32,6 +32,7 @@ pub struct EmailInspectOutDTO {
 
 #[derive(Deserialize, Debug)]
 pub struct EmailDeleteInDTO{
+    pub mailbox_name: String,
     pub sequence_set_top: u32,
     pub sequence_set_bottom: u32
 }

@@ -4,12 +4,32 @@ use imap::types::Fetch;
 
 use crate::utils::{utils_session::check_is_valid_session, utils_transports::create_imap_session};
 
+use super::models::EmailDeleteInDTO;
+
 async fn get_email_in_detail_from_inbox() -> impl Responder {
     HttpResponse::Ok()
 }
 
-async fn delete_email_from_inbox() -> impl Responder {
-    HttpResponse::Ok()
+async fn delete_email_from_inbox(
+    session: Session,
+    request: web::Json<EmailDeleteInDTO>,
+) -> Result<HttpResponse, Error> {
+    let credentials = check_is_valid_session(&session).unwrap();
+    let mut imap_session = create_imap_session(
+        &credentials.email,
+        &credentials.password,
+        &("imap.gmail.com".to_string()),
+    )
+    .await
+    .unwrap();
+
+    println!("Request: {:?}", request);
+    imap_session.select(&request.mailbox_name).unwrap();
+    imap_session.store(format!("{}:{}", request.sequence_set_top, request.sequence_set_bottom), "+FLAGS (\\Deleted)").unwrap();
+    imap_session.expunge().unwrap();
+
+    imap_session.logout().unwrap();
+    Ok(HttpResponse::Ok().body("Ok"))
 }
 
 async fn list_emails_from_inbox(session: Session) -> Result<HttpResponse, Error> {
@@ -21,7 +41,7 @@ async fn list_emails_from_inbox(session: Session) -> Result<HttpResponse, Error>
     )
     .await
     .unwrap();
-    
+
     let mailbox_info = imap_session.select("INBOX").unwrap();
     println!("Mailbox info: \nEmails: {}", mailbox_info.exists);
     let start_number = mailbox_info.exists;
@@ -47,7 +67,7 @@ async fn list_emails_from_inbox(session: Session) -> Result<HttpResponse, Error>
             .to_string();
         println!("Root message processing");
         println!("Message sender: {}\nMessage body: \n{}", sender, "body");
-        
+
         let structure = message.bodystructure().unwrap();
         describe_structure(structure, message);
     }
@@ -62,10 +82,12 @@ fn describe_structure(structure: &imap_proto::BodyStructure, message: &Fetch) {
             common,
             other,
             extension,
-        } => 
-        {
+        } => {
             println!("Basic body structure");
-            println!("BodyContentCommon: {:?}, BodyContentSinglePart: {:?}",common, other);
+            println!(
+                "BodyContentCommon: {:?}, BodyContentSinglePart: {:?}",
+                common, other
+            );
         }
         imap_proto::BodyStructure::Text {
             common,
@@ -74,7 +96,10 @@ fn describe_structure(structure: &imap_proto::BodyStructure, message: &Fetch) {
             extension,
         } => {
             println!("Text body structure");
-            println!("BodyContentCommon: {:?}, BodyContentSinglePart: {:?}, Lines {}",common, other, lines);
+            println!(
+                "BodyContentCommon: {:?}, BodyContentSinglePart: {:?}, Lines {}",
+                common, other, lines
+            );
         }
         imap_proto::BodyStructure::Message {
             common,
@@ -85,14 +110,16 @@ fn describe_structure(structure: &imap_proto::BodyStructure, message: &Fetch) {
             extension,
         } => {
             println!("Message body structure");
-            println!("BodyContentCommon: {:?}, BodyContentSinglePart: {:?}, Envelope: {:?}, Lines {}",common, other, envelope, lines);
+            println!(
+                "BodyContentCommon: {:?}, BodyContentSinglePart: {:?}, Envelope: {:?}, Lines {}",
+                common, other, envelope, lines
+            );
         }
         imap_proto::BodyStructure::Multipart {
             common,
             bodies,
             extension,
-        } => 
-        {
+        } => {
             println!("Multipart body structure");
             println!("BodyContentCommon: {:?}", common);
             for body in bodies {
@@ -109,5 +136,9 @@ async fn download_attachment_from_email(session: Session) -> impl Responder {
 }
 
 pub fn email_imap_config(cfg: &mut web::ServiceConfig) {
-    cfg.service(web::resource("/email/list").route(web::get().to(list_emails_from_inbox)));
+    cfg.service(
+        web::resource("/email")
+            .route(web::get().to(list_emails_from_inbox))
+            .route(web::delete().to(delete_email_from_inbox)),
+    );
 }

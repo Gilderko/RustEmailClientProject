@@ -7,7 +7,7 @@ use actix_web::{
     cookie::{time::Duration, Key},
     web, App, HttpResponse, HttpServer,
 };
-use constants::auth_cookie_name;
+use constants::AUTH_COOKIE_NAME;
 use dotenv::dotenv;
 use handlers::{auth::auth::auth_config, email::{email_smtp::email_smtp_config, email_imap::email_imap_config}};
 use imap::Session;
@@ -39,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
                     .cookie_http_only(false)
                     .cookie_content_security(CookieContentSecurity::Signed)
                     .session_lifecycle(PersistentSession::default().session_ttl(Duration::hours(2)))
-                    .cookie_name(auth_cookie_name.to_string())
+                    .cookie_name(AUTH_COOKIE_NAME.to_string())
                     .build(),
             )
             //.wrap(AuthGuardFactory)
