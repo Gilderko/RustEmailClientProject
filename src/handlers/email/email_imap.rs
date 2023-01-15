@@ -1,7 +1,7 @@
-use std::vec;
+use std::{vec, path::Path};
 
 use actix_session::Session;
-use actix_web::{http::header::ContentType, web, Error, HttpRequest, HttpResponse, Responder};
+use actix_web::{http::header::{ContentType, ContentEncoding}, web, Error, HttpRequest, HttpResponse, Responder};
 use imap::types::{Fetch, Flag};
 use regex::bytes::Regex;
 
@@ -39,7 +39,7 @@ async fn get_email_in_detail_from_inbox(
             "(FLAGS BODYSTRUCTURE BODY[TEXT] ENVELOPE INTERNALDATE)",
         )
         .unwrap()[0];
-    /*println!(
+    println!(
         "Text Section {}",
         String::from_utf8(
             email_message_raw
@@ -50,14 +50,14 @@ async fn get_email_in_detail_from_inbox(
                 .to_vec()
         )
         .unwrap()
-    );*/
+    );
     let structure = email_message_raw.bodystructure().unwrap();
 
     let mut description = EmailAnalysis {
         plain_text_octets: 0,
         attachments: vec![],
     };
-    describe_structure(structure, email_message_raw, &mut description);
+    parse_body_structure(structure, email_message_raw, &mut description);
 
     println!("Description: {:?}", description);
     let body_bytes = email_message_raw.text().unwrap();
@@ -202,7 +202,7 @@ async fn list_emails_from_inbox(
     response
 }
 
-fn describe_structure(
+fn parse_body_structure(
     structure: &imap_proto::BodyStructure,
     message: &Fetch,
     description: &mut EmailAnalysis,
@@ -281,7 +281,7 @@ fn describe_structure(
             println!("Multipart body structure");
             println!("BodyContentCommon: {:?}", common);
             for body in bodies {
-                describe_structure(body, message, description);
+                parse_body_structure(body, message, description);
                 println!("Next header equal depth");
             }
             println!("Recursion comming out");
@@ -290,7 +290,10 @@ fn describe_structure(
 }
 
 async fn download_attachment_from_email(session: Session) -> impl Responder {
-    HttpResponse::Ok()
+    match std::fs::read("./tmp/T_ES.tese") {
+        Ok(file_content) => HttpResponse::Ok().insert_header(ContentEncoding::Identity).content_type("application/octet-stream").body(file_content),
+        Err(_) => HttpResponse::NotFound().body("404 Not Found"),
+    }
 }
 
 async fn get_mailboxes(session: Session) -> impl Responder {
@@ -323,5 +326,6 @@ pub fn email_imap_config(cfg: &mut web::ServiceConfig) {
             .route(web::delete().to(delete_email_from_inbox)),
     )
     .service(web::resource("/mailbox").route(web::get().to(get_mailboxes)))
-    .service(web::resource("/emailDetail").route(web::get().to(get_email_in_detail_from_inbox)));
+    .service(web::resource("/emailDetail").route(web::get().to(get_email_in_detail_from_inbox)))
+    .service(web::resource("/attachment").route(web::get().to(download_attachment_from_email)));
 }
