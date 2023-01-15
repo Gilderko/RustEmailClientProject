@@ -48,9 +48,16 @@ pub struct EmailDetailInDTO {
 pub struct EmailDetailOutDTO {
     pub from_address: String,
     pub subject: String,
-    pub attachment_count: u32,
     pub send_date: NaiveDateTime,
-    pub body_text: String
+    pub body_text: String,
+    pub attachments: Vec<EmailDetailAttachmentOutDTO>
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct EmailDetailAttachmentOutDTO {
+   pub file_name: String, 
+   pub size_octets: u32,
+   pub is_file: bool
 }
 
 #[derive(Serialize, Deserialize, Debug)]
