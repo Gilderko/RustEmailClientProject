@@ -1,5 +1,6 @@
-use std::{vec, path::Path};
+use std::{vec, path::{Path, PathBuf}};
 
+use actix_files::NamedFile;
 use actix_session::Session;
 use actix_web::{http::header::{ContentType, ContentEncoding}, web, Error, HttpRequest, HttpResponse, Responder};
 use imap::types::{Fetch, Flag};
@@ -289,11 +290,9 @@ fn parse_body_structure(
     }
 }
 
-async fn download_attachment_from_email(session: Session) -> impl Responder {
-    match std::fs::read("./tmp/T_ES.tese") {
-        Ok(file_content) => HttpResponse::Ok().insert_header(ContentEncoding::Identity).content_type("application/octet-stream").body(file_content),
-        Err(_) => HttpResponse::NotFound().body("404 Not Found"),
-    }
+async fn download_attachment_from_email(session: Session) -> Result<NamedFile, Error> {
+    let path: PathBuf = "./tmp/T_ES.tese".parse().unwrap();
+    Ok(NamedFile::open(path)?)
 }
 
 async fn get_mailboxes(session: Session) -> impl Responder {
