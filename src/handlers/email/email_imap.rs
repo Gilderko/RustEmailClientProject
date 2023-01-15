@@ -1,13 +1,50 @@
+use std::vec;
+
 use actix_session::Session;
-use actix_web::{web, Error, HttpResponse, Responder};
-use imap::types::Fetch;
+use actix_web::{http::header::ContentType, web, Error, HttpRequest, HttpResponse, Responder};
+use imap::types::{Fetch, Flag};
 
-use crate::utils::{utils_session::check_is_valid_session, utils_transports::create_imap_session};
+use crate::{
+    handlers::email::models::{EmailDetailOutDTO, EmailInspectOutDTO, EmailListOutDTO},
+    utils::{utils_session::check_is_valid_session, utils_transports::create_imap_session},
+};
 
-use super::models::EmailDeleteInDTO;
+use super::models::{EmailDeleteInDTO, EmailDetailInDTO, EmailListInDTO, MailboxListOutDTO};
 
-async fn get_email_in_detail_from_inbox() -> impl Responder {
-    HttpResponse::Ok()
+async fn get_email_in_detail_from_inbox(
+    session: Session,
+    request: web::Json<EmailDetailInDTO>,
+) -> Result<HttpResponse, Error> {
+    let credentials = check_is_valid_session(&session).unwrap();
+    let mut imap_session = create_imap_session(
+        &credentials.email,
+        &credentials.password,
+        &("imap.gmail.com".to_string()),
+    )
+    .await
+    .unwrap();
+
+    println!("Request: {:?}", request);
+    imap_session.select(&request.mailbox_name).unwrap();
+    let email_message_raw = &imap_session
+        .fetch(
+            format!("{}", request.sequence_number),
+            "(FLAGS BODYSTRUCTURE BODY[TEXT] RFC822.SIZE ENVELOPE)",
+        )
+        .unwrap()[0];
+
+    let structure = email_message_raw.bodystructure().unwrap();
+
+    let email_result = EmailDetailOutDTO {
+        from_address: todo!(),
+        subject: todo!(),
+        attachment_count: todo!(),
+        send_date: todo!(),
+        body_text: todo!(),
+    };
+
+    imap_session.logout().unwrap();
+    Ok(HttpResponse::Ok().body("Ok"))
 }
 
 async fn delete_email_from_inbox(
@@ -25,14 +62,25 @@ async fn delete_email_from_inbox(
 
     println!("Request: {:?}", request);
     imap_session.select(&request.mailbox_name).unwrap();
-    imap_session.store(format!("{}:{}", request.sequence_set_top, request.sequence_set_bottom), "+FLAGS (\\Deleted)").unwrap();
+    imap_session
+        .store(
+            format!(
+                "{}:{}",
+                request.sequence_set_top, request.sequence_set_bottom
+            ),
+            "+FLAGS (\\Deleted)",
+        )
+        .unwrap();
     imap_session.expunge().unwrap();
 
     imap_session.logout().unwrap();
     Ok(HttpResponse::Ok().body("Ok"))
 }
 
-async fn list_emails_from_inbox(session: Session) -> Result<HttpResponse, Error> {
+async fn list_emails_from_inbox(
+    session: Session,
+    request: web::Json<EmailListInDTO>,
+) -> impl Responder {
     let credentials = check_is_valid_session(&session).unwrap();
     let mut imap_session = create_imap_session(
         &credentials.email,
@@ -42,38 +90,57 @@ async fn list_emails_from_inbox(session: Session) -> Result<HttpResponse, Error>
     .await
     .unwrap();
 
-    let mailbox_info = imap_session.select("INBOX").unwrap();
-    println!("Mailbox info: \nEmails: {}", mailbox_info.exists);
-    let start_number = mailbox_info.exists;
-    let end_number = mailbox_info.exists;
+    let mailbox_info = imap_session.select(&request.mailbox_name).unwrap();
+    println!("Mailbox info: {:?}", mailbox_info);
 
-    let messages = imap_session
+    let start_number = mailbox_info.exists - request.requested_page_number * request.page_size;
+    let end_number = start_number - request.page_size;
+
+    let messages_raw = imap_session
         .fetch(
             format!("{}:{}", end_number, start_number),
-            "(FLAGS BODYSTRUCTURE BODY[TEXT] RFC822.SIZE ENVELOPE)",
+            "(FLAGS BODYSTRUCTURE BODY[TEXT] RFC822.SIZE ENVELOPE INTERNALDATE)",
         )
         .unwrap();
-    for message in messages.into_iter() {
-        let sender = message.envelope().unwrap().from.as_ref().unwrap()[0]
+
+    let mut messages_out: Vec<EmailInspectOutDTO> = vec![];
+
+    for message in messages_raw.into_iter() {
+        let sender_bytes = message.envelope().unwrap().from.as_ref().unwrap()[0]
             .mailbox
-            .unwrap();
-        let sender = std::str::from_utf8(sender)
-            .expect("sender was not valid utf-8")
-            .to_string();
+            .unwrap_or_default();
 
-        let body = message.text().unwrap();
-        let body = std::str::from_utf8(body)
-            .expect("message was not valid utf-8")
-            .to_string();
-        println!("Root message processing");
-        println!("Message sender: {}\nMessage body: \n{}", sender, "body");
+        let subject_bytes = message.envelope().unwrap().subject.unwrap_or_default();
 
-        let structure = message.bodystructure().unwrap();
-        describe_structure(structure, message);
+        let sender = String::from_utf8(sender_bytes.to_vec()).unwrap_or_default();
+        let subject = String::from_utf8(subject_bytes.to_vec()).unwrap_or_default();
+        let was_read = message.flags().contains(&Flag::Seen);
+        let send_date = message.internal_date().unwrap_or_default().naive_utc();
+
+        println!(
+            "Body: {}",
+            String::from_utf8(message.text().unwrap().to_vec()).unwrap()
+        );
+
+        let message_out = EmailInspectOutDTO {
+            from_address: sender,
+            subject: subject,
+            was_read: was_read,
+            send_date: send_date,
+        };
+
+        messages_out.push(message_out);
     }
 
-    imap_session.logout();
-    Ok(HttpResponse::Ok().body("Ok"))
+    let response = EmailListOutDTO {
+        total_emails_count: mailbox_info.exists,
+        requested_page_number: request.page_size,
+        page_size: request.page_size,
+        emails: messages_out,
+    };
+
+    imap_session.logout().unwrap();
+    response
 }
 
 fn describe_structure(structure: &imap_proto::BodyStructure, message: &Fetch) {
@@ -135,10 +202,36 @@ async fn download_attachment_from_email(session: Session) -> impl Responder {
     HttpResponse::Ok()
 }
 
+async fn get_mailboxes(session: Session) -> impl Responder {
+    let credentials = check_is_valid_session(&session).unwrap();
+    let mut imap_session = create_imap_session(
+        &credentials.email,
+        &credentials.password,
+        &("imap.gmail.com".to_string()),
+    )
+    .await
+    .unwrap();
+
+    let mailboxes = imap_session.list(None, Some("*")).unwrap();
+    let mut mailbox_names: Vec<String> = vec!();
+    
+    for mailbox in mailboxes.iter(){
+        println!("Mailbox: {:?}", mailbox);
+        mailbox_names.push(mailbox.name().to_string());
+    }
+
+    let response = MailboxListOutDTO {
+        mailbox_names,
+    };
+    
+    response
+}
+
 pub fn email_imap_config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::resource("/email")
             .route(web::get().to(list_emails_from_inbox))
             .route(web::delete().to(delete_email_from_inbox)),
-    );
+    )
+    .service(web::resource("/mailbox").route(web::get().to(get_mailboxes)));
 }
