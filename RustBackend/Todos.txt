@@ -1,8 +1,21 @@
 Endpoints for:
-	- send message
-	- list messages
+	- send message (Done except for attachments)
+	- list messages (Done indempendent of mailboxes)
 		- received
 		- sent
-	- get message in detail
-	- delete message from inbox
+		- spam
+		- etc...
+	- get message in detail (Done except for attachments)
+	- delete message from inbox (Done)
+	- list mailboxes (Done)
+	- upload and download of attachments 
+
+Frontend:
+	- use for all endpoints
+		- log in
+		- log out
+		- send message
+		- list message from any mailboxes
+		- inspect message from any mailboxes
+		- delete message from any mailboxes
 	
