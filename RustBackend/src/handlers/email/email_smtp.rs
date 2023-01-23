@@ -5,7 +5,7 @@ use std::{
 
 use actix_multipart::Multipart;
 use actix_session::Session;
-use actix_web::{web, Error, HttpResponse, Responder};
+use actix_web::{web::{self, Bytes}, Error, HttpResponse, Responder};
 use futures_util::{StreamExt, TryStreamExt};
 use lettre::{
     message::{
@@ -52,19 +52,29 @@ async fn send_email(mut payload: Multipart, session: Session) -> Result<HttpResp
                         .await??;
             }
         } else {
-            let field_value = field.next().await.unwrap()?;
+            let bytes_result = if let Some(value) = field.next().await {
+                if let Ok(only_bytes) = value {
+                    only_bytes
+                }
+                else {
+                    Bytes::new()
+                }
+            } else {
+                Bytes::new()
+            };
+
             match field.content_disposition().get_name().unwrap() {
                 "to_address" => {
                     println!("to_address");
-                    email_struct.to_address = String::from_utf8(field_value.to_vec()).unwrap()
+                    email_struct.to_address = String::from_utf8(bytes_result.to_vec()).unwrap()
                 }
                 "subject" => {
                     println!("subject");
-                    email_struct.subject = String::from_utf8(field_value.to_vec()).unwrap()
+                    email_struct.subject = String::from_utf8(bytes_result.to_vec()).unwrap()
                 }
                 "body" => {
                     println!("body");
-                    email_struct.body = String::from_utf8(field_value.to_vec()).unwrap()
+                    email_struct.body = String::from_utf8(bytes_result.to_vec()).unwrap()
                 }
                 result => {
                     print!("Other name {}", result);
@@ -85,7 +95,7 @@ async fn send_email(mut payload: Multipart, session: Session) -> Result<HttpResp
             let content_type_guess = mime_guess::from_path(&path.1);
 
             body_total = body_total.singlepart(
-                Attachment::new(path.1).body(
+                Attachment::new(path.1.clone()).body(
                     file_content,
                     content_type_guess
                         .first_or_octet_stream()
