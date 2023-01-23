@@ -64,3 +64,10 @@ pub struct EmailDetailAttachmentOutDTO {
 pub struct MailboxListOutDTO {
     pub mailbox_names: Vec<String>
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct EmailAttachmentInDTO {
+    pub mailbox_name: String,
+    pub sequence_number: u32,
+    pub attachment_name: String
+}
