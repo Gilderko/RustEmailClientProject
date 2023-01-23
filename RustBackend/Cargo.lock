@@ -19,6 +19,8 @@ dependencies = [
  "imap-proto",
  "lettre 0.10.1",
  "lettre_email",
+ "mime",
+ "mime_guess",
  "native-tls",
  "regex",
  "serde",

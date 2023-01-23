@@ -1,5 +1,5 @@
 Endpoints for:
-    - send message (Done except for attachments)
+    - send message (Done (including the attachments))
     - list messages (Done indempendent of mailboxes)
         - received
         - sent
@@ -8,7 +8,7 @@ Endpoints for:
     - get message in detail (Done except for attachments)
     - delete message from inbox (Done)
     - list mailboxes (Done)
-    - upload and download of attachments 
+    - upload and download of attachments (Upload done)
 
 Backend:
     - improve error handling  
