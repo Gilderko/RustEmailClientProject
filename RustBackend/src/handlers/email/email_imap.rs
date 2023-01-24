@@ -1,22 +1,34 @@
-use std::{vec, path::{Path, PathBuf}};
+use std::{
+    path::{Path, PathBuf},
+    vec,
+};
 
-use actix_files::NamedFile;
 use actix_session::Session;
-use actix_web::{http::header::{ContentType, ContentEncoding}, web, Error, HttpRequest, HttpResponse, Responder};
+use actix_web::{
+    http::header::{
+        ContentDisposition, ContentEncoding, ContentType, DispositionParam, DispositionType,
+    },
+    web, Error, HttpRequest, HttpResponse, Responder,
+};
+use chrono::Utc;
 use imap::types::{Fetch, Flag};
-use regex::bytes::Regex;
+use regex::bytes::{Captures, Regex, RegexSet};
 
 use crate::{
     handlers::email::{
-        helper_models::AttachmentDescription,
-        models::{EmailDetailOutDTO, EmailInspectOutDTO, EmailListOutDTO, EmailDetailAttachmentOutDTO},
+        helper_models::{EmailPartDescription, EncodingType},
+        models::{
+            EmailDetailAttachmentOutDTO, EmailDetailOutDTO, EmailInspectOutDTO, EmailListOutDTO,
+        },
     },
     utils::{utils_session::check_is_valid_session, utils_transports::create_imap_session},
 };
 
 use super::{
     helper_models::EmailAnalysis,
-    models::{EmailDeleteInDTO, EmailDetailInDTO, EmailListInDTO, MailboxListOutDTO},
+    models::{
+        EmailAttachmentInDTO, EmailDeleteInDTO, EmailDetailInDTO, EmailListInDTO, MailboxListOutDTO,
+    },
 };
 
 async fn get_email_in_detail_from_inbox(
@@ -40,45 +52,32 @@ async fn get_email_in_detail_from_inbox(
             "(FLAGS BODYSTRUCTURE BODY[TEXT] ENVELOPE INTERNALDATE)",
         )
         .unwrap()[0];
-    println!(
-        "Text Section {}",
-        String::from_utf8(
-            email_message_raw
-                .section(&imap_proto::SectionPath::Full(
-                    imap_proto::MessageSection::Text
-                ))
-                .unwrap()
-                .to_vec()
-        )
-        .unwrap()
-    );
+
     let structure = email_message_raw.bodystructure().unwrap();
 
     let mut description = EmailAnalysis {
         plain_text_octets: 0,
         attachments: vec![],
     };
-    parse_body_structure(structure, email_message_raw, &mut description);
+    parse_body_structure(
+        structure,
+        email_message_raw,
+        &mut description,
+        String::new(),
+        0,
+    );
 
-    println!("Description: {:?}", description);
-    let body_bytes = email_message_raw.text().unwrap();
-    let limit_low = description.attachments.iter().fold(0, |x,y| x + y.size_octets) as usize;
-    let text_bytes = &body_bytes[0 .. (body_bytes.len() - limit_low)];
+    let send_date = email_message_raw
+        .internal_date()
+        .unwrap_or_default()
+        .naive_utc();
 
-    let mut body = String::from_utf8(text_bytes.to_vec()).unwrap();
-    let regex_string = format!(r"\r\n\r\n([\S\s]{{{}}})\r\n", description.plain_text_octets);
-    println!("Regex string: {}", regex_string);
-    let regex = Regex::new(&regex_string).unwrap();
-    let body_matches = regex.captures_iter(email_message_raw.text().unwrap());
-    
-    println!("RegexMatch:");
-    for body_match in body_matches {
-        println!("Body match: {:?}", body_match);
-        body = String::from_utf8(body_match[1].to_vec()).unwrap();
-        break;
-    }
-
-    let sender_bytes = email_message_raw.envelope().unwrap().from.as_ref().unwrap()[0]
+    let sender_bytes = email_message_raw
+        .envelope()
+        .unwrap()
+        .from
+        .as_ref()
+        .unwrap_or(&vec![])[0]
         .mailbox
         .unwrap_or_default();
 
@@ -90,22 +89,34 @@ async fn get_email_in_detail_from_inbox(
 
     let sender = String::from_utf8(sender_bytes.to_vec()).unwrap_or_default();
     let subject = String::from_utf8(subject_bytes.to_vec()).unwrap_or_default();
-    let send_date = email_message_raw
-        .internal_date()
-        .unwrap_or_default()
-        .naive_utc();
 
     let mut response = EmailDetailOutDTO {
         from_address: sender,
         subject: subject,
         send_date: send_date,
-        body_text: body,
+        body_text: String::new(),
         attachments: vec![],
     };
 
+    if let Some(text_body) = description
+        .attachments
+        .iter()
+        .find(|attach| attach.is_email_text)
+    {
+        let text_bytes =
+            &email_message_raw.text().unwrap()[text_body.bytes_start..text_body.bytes_end];
+        response.body_text = String::from_utf8_lossy(text_bytes).to_string();
+    }
+
     for attach_info in description.attachments {
-        let attach = EmailDetailAttachmentOutDTO { file_name: attach_info.file_name, size_octets: attach_info.size_octets, is_file: attach_info.is_file };
-        response.attachments.push(attach);
+        if attach_info.is_file {
+            let attach = EmailDetailAttachmentOutDTO {
+                file_name: attach_info.file_name,
+                size_octets: attach_info.size_octets,
+                is_file: attach_info.is_file,
+            };
+            response.attachments.push(attach);
+        }
     }
 
     imap_session.logout().unwrap();
@@ -207,32 +218,44 @@ fn parse_body_structure(
     structure: &imap_proto::BodyStructure,
     message: &Fetch,
     description: &mut EmailAnalysis,
+    separator: String,
+    match_index: usize,
 ) {
     match structure {
         imap_proto::BodyStructure::Basic {
             common,
             other,
-            extension,
+            extension: _,
         } => {
             println!("Basic body structure");
             println!(
                 "BodyContentCommon: {:?}, BodyContentSinglePart: {:?}",
                 common, other
             );
-            let file_name = common
-                .ty
-                .params
-                .as_ref()
-                .unwrap()
-                .iter()
-                .find(|(x, _)| *x == "NAME")
-                .unwrap_or_else(|| &("", ""));
-            let file_size = other.octets;
-            let attachment_description = AttachmentDescription {
-                file_name: file_name.1.to_string(),
-                size_octets: file_size,
-                is_file: true,
+
+            let regex_string = format!(
+                r"{}(\r\n|\n)[\S\s]*?(\r\n|\n)(\r\n|\n)([\S\s]*?)(\r\n|\n)--",
+                separator
+            );
+            let regex = Regex::new(&regex_string).unwrap();
+            let body_matches = regex.captures_iter(message.text().unwrap());
+
+            let mut attachment_description = EmailPartDescription {
+                file_name: "Unparsed attachment".to_string(),
+                size_octets: other.octets,
+                is_file: false,
+                bytes_start: 0,
+                bytes_end: 0,
+                is_email_text: false,
+                encoding: decide_encoding(other)
             };
+            
+            modify_part_description(
+                body_matches,
+                match_index,
+                &mut attachment_description,
+                common,
+            );
 
             description.attachments.push(attachment_description);
         }
@@ -240,7 +263,7 @@ fn parse_body_structure(
             common,
             other,
             lines,
-            extension,
+            extension: _,
         } => {
             println!("Text body structure");
             println!(
@@ -248,51 +271,183 @@ fn parse_body_structure(
                 common, other, lines
             );
 
-            if common.ty.ty == "TEXT" && common.ty.subtype == "PLAIN" {
-                description.plain_text_octets = other.octets;
-            } else {
-                let attachment_description = AttachmentDescription {
-                    file_name: String::new(),
-                    size_octets: other.octets,
-                    is_file: false,
-                };
+            let regex_string = format!(
+                r"{}(\r\n|\n)[\S\s]*?(\r\n|\n)(\r\n|\n)([\S\s]*?)(\r\n|\n)--",
+                separator
+            );
+            let regex = Regex::new(&regex_string).unwrap();
+            let body_matches = regex.captures_iter(message.text().unwrap());
 
-                description.attachments.push(attachment_description);
-            }
+            let mut attachment_description = EmailPartDescription {
+                file_name: "Unparsed attachment".to_string(),
+                size_octets: other.octets,
+                is_file: false,
+                bytes_start: 0,
+                bytes_end: 0,
+                is_email_text: false,
+                encoding: decide_encoding(other)
+            };
+
+            modify_part_description(
+                body_matches,
+                match_index,
+                &mut attachment_description,
+                common,
+            );
+
+            description.attachments.push(attachment_description)
         }
         imap_proto::BodyStructure::Message {
-            common,
-            other,
-            envelope,
-            body,
-            lines,
-            extension,
+            common: _,
+            other: _,
+            envelope: _,
+            body: _,
+            lines: _,
+            extension: _,
         } => {
-            println!("Message body structure");
-            println!(
-                "BodyContentCommon: {:?}, BodyContentSinglePart: {:?}, Envelope: {:?}, Lines {}",
-                common, other, envelope, lines
-            );
+            println!("Message body structure ignored");
         }
         imap_proto::BodyStructure::Multipart {
             common,
             bodies,
-            extension,
+            extension: _,
         } => {
             println!("Multipart body structure");
             println!("BodyContentCommon: {:?}", common);
+            let mut part_index = 0;
             for body in bodies {
-                parse_body_structure(body, message, description);
-                println!("Next header equal depth");
+                let boundary = if let Some(params) = &common.ty.params {
+                    params.iter().find(|(desc, _)| *desc == "BOUNDARY")
+                } else {
+                    None
+                };
+
+                if let Some(boundary_value) = boundary {
+                    parse_body_structure(
+                        body,
+                        message,
+                        description,
+                        boundary_value.1.to_string(),
+                        part_index,
+                    );
+                }
+                part_index += 1;
             }
-            println!("Recursion comming out");
         }
     }
 }
 
-async fn download_attachment_from_email(session: Session) -> Result<NamedFile, Error> {
-    let path: PathBuf = "./tmp/T_ES.tese".parse().unwrap();
-    Ok(NamedFile::open(path)?)
+fn decide_encoding(other: &imap_proto::BodyContentSinglePart) -> EncodingType {
+    let encoding = match other.transfer_encoding {
+        imap_proto::ContentEncoding::SevenBit => EncodingType::SevenBit,
+        imap_proto::ContentEncoding::Base64 => EncodingType::Base64,
+        _ => {EncodingType::Other},
+    };
+    encoding
+}
+
+fn modify_part_description(
+    mut body_matches: regex::bytes::CaptureMatches,
+    match_index: usize,
+    attachment_description: &mut EmailPartDescription,
+    common: &imap_proto::BodyContentCommon,
+) {
+    if let Some(capture_match) = body_matches.nth(match_index) {
+        if let Some(result_match) = capture_match.get(4) {
+            attachment_description.bytes_start = result_match.start();
+            attachment_description.bytes_end = result_match.end();
+        }
+    }
+
+    if let Some(disposition) = &common.disposition {
+        if let Some(parameters) = &disposition.params {
+            if let Some(file_name) = parameters.iter().find(|(desc, _)| desc == &"FILENAME") {
+                attachment_description.is_file = true;
+                attachment_description.file_name = file_name.1.to_string();
+            }
+        }
+    } else {
+        attachment_description.is_email_text =
+            common.ty.ty == "TEXT" && common.ty.subtype == "PLAIN";
+        attachment_description.file_name = "Email text".to_string();
+    }
+}
+
+async fn download_attachment_from_email(
+    session: Session,
+    request: web::Json<EmailAttachmentInDTO>,
+) -> impl Responder {
+    let credentials = check_is_valid_session(&session).unwrap();
+    let mut imap_session = create_imap_session(
+        &credentials.email,
+        &credentials.password,
+        &("imap.gmail.com".to_string()),
+    )
+    .await
+    .unwrap();
+
+    imap_session.select(&request.mailbox_name).unwrap();
+    let email_message_raw = &imap_session
+        .fetch(
+            format!("{}", request.sequence_number),
+            "(FLAGS BODYSTRUCTURE BODY[TEXT] ENVELOPE INTERNALDATE)",
+        )
+        .unwrap()[0];
+    let structure = email_message_raw.bodystructure().unwrap();
+
+    let mut description = EmailAnalysis {
+        plain_text_octets: 0,
+        attachments: vec![],
+    };
+    parse_body_structure(
+        structure,
+        email_message_raw,
+        &mut description,
+        String::new(),
+        0,
+    );
+
+    let found_attachment = description
+        .attachments
+        .iter()
+        .find(|attachment| attachment.file_name == request.attachment_name);
+
+    match found_attachment {
+        Some(description) => {
+            let result_bytes =
+                &email_message_raw.text().unwrap()[description.bytes_start..description.bytes_end];
+            
+            let decoded_bytes = match description.encoding {
+                EncodingType::SevenBit => {
+                    result_bytes.to_vec()
+                }
+                EncodingType::Base64 => {
+                    match data_encoding::BASE64_MIME.decode(result_bytes) {
+                        Ok(bytes) => bytes,
+                        Err(error) => {
+                            println!("Decoding error: {}", error);
+                            vec!()
+                        }
+                    }
+                }
+                EncodingType::Other => {
+                    result_bytes.to_vec()
+                }
+            };
+
+            let content_disposition = ContentDisposition {
+                disposition: DispositionType::Attachment,
+                parameters: vec![DispositionParam::Filename(description.file_name.clone())],
+            };
+
+            HttpResponse::Ok()
+                .insert_header(ContentEncoding::Identity)
+                .insert_header(content_disposition)
+                .content_type("application/octet-stream")
+                .body(decoded_bytes)
+        }
+        None => HttpResponse::NotFound().body("404 Not Found"),
+    }
 }
 
 async fn get_mailboxes(session: Session) -> impl Responder {

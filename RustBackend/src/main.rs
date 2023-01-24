@@ -42,7 +42,6 @@ async fn main() -> anyhow::Result<()> {
                     .cookie_name(AUTH_COOKIE_NAME.to_string())
                     .build(),
             )
-            //.wrap(AuthGuardFactory)
             .configure(app_config)
             .service(web::scope("/auth").configure(auth_config))
             .service(

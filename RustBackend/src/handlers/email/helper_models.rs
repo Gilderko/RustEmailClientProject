@@ -1,14 +1,23 @@
+use imap_proto::ContentEncoding;
 use serde::{Serialize, Deserialize};
 
-#[derive(Serialize, Deserialize, Debug)]
 pub struct EmailAnalysis{
     pub plain_text_octets: u32,
-    pub attachments: Vec<AttachmentDescription>
+    pub attachments: Vec<EmailPartDescription>
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct AttachmentDescription{
+pub struct EmailPartDescription{
     pub file_name: String,
     pub size_octets: u32,
-    pub is_file: bool
+    pub bytes_start: usize,
+    pub bytes_end: usize,
+    pub is_file: bool,
+    pub is_email_text: bool,
+    pub encoding: EncodingType,
+}
+
+pub enum EncodingType{
+    SevenBit,
+    Base64,
+    Other
 }
