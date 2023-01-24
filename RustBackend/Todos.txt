@@ -5,10 +5,10 @@ Endpoints for:
         - sent
         - spam
         - etc...
-    - get message in detail (Done except for attachments)
+    - get message in detail (Done (including the attachments))
     - delete message from inbox (Done)
     - list mailboxes (Done)
-    - upload and download of attachments (Upload done)
+    - upload and download of attachments (Upload and download done)
 
 Backend:
     - improve error handling  
@@ -21,3 +21,4 @@ Frontend:
         - list message from any mailboxes
         - inspect message from any mailboxes
         - delete message from any mailboxes
+    - notifications when stuff changes
