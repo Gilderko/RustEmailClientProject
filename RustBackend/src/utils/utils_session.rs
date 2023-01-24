@@ -1,10 +1,10 @@
 use std::io::{Error, ErrorKind};
 
-use actix_session::Session;
 use crate::{
     constants::{AUTH_EMAIL_STRING, AUTH_PASSWORD_STRING},
     handlers::auth::models::SignInMessage,
 };
+use actix_session::Session;
 
 pub fn check_is_valid_session(session: &Session) -> Result<SignInMessage, Error> {
     let email = session.get::<String>(AUTH_EMAIL_STRING);
@@ -19,5 +19,3 @@ pub fn check_is_valid_session(session: &Session) -> Result<SignInMessage, Error>
         Err(Error::new(ErrorKind::Other, "Unauthenticated"))
     }
 }
-
-

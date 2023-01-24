@@ -12,7 +12,7 @@ pub struct EmailInDTO {
 pub struct EmailListInDTO {
     pub requested_page_number: u32,
     pub page_size: u32,
-    pub mailbox_name: String
+    pub mailbox_name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -32,16 +32,16 @@ pub struct EmailInspectOutDTO {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct EmailDeleteInDTO{
+pub struct EmailDeleteInDTO {
     pub mailbox_name: String,
     pub sequence_set_top: u32,
-    pub sequence_set_bottom: u32
+    pub sequence_set_bottom: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EmailDetailInDTO {
     pub mailbox_name: String,
-    pub sequence_number: u32
+    pub sequence_number: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -50,24 +50,24 @@ pub struct EmailDetailOutDTO {
     pub subject: String,
     pub send_date: NaiveDateTime,
     pub body_text: String,
-    pub attachments: Vec<EmailDetailAttachmentOutDTO>
+    pub attachments: Vec<EmailDetailAttachmentOutDTO>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EmailDetailAttachmentOutDTO {
-   pub file_name: String, 
-   pub size_octets: u32,
-   pub is_file: bool
+    pub file_name: String,
+    pub size_octets: u32,
+    pub is_file: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MailboxListOutDTO {
-    pub mailbox_names: Vec<String>
+    pub mailbox_names: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EmailAttachmentInDTO {
     pub mailbox_name: String,
     pub sequence_number: u32,
-    pub attachment_name: String
+    pub attachment_name: String,
 }

@@ -11,12 +11,11 @@ pub async fn create_smtp_transport(
 ) -> Result<AsyncSmtpTransport<Tokio1Executor>, lettre::transport::smtp::Error> {
     let creds = Credentials::new(username.clone(), password.clone());
 
-    let smtp_session =
-        AsyncSmtpTransport::<Tokio1Executor>::relay(&domain)
-            .unwrap()
-            .credentials(creds)
-            .build();
-    
+    let smtp_session = AsyncSmtpTransport::<Tokio1Executor>::relay(&domain)
+        .unwrap()
+        .credentials(creds)
+        .build();
+
     let smtp_test = smtp_session.test_connection().await;
 
     match smtp_test {

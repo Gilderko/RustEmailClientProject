@@ -1,9 +1,7 @@
-use actix_web::{
-    body::BoxBody, http::header::ContentType, HttpRequest, HttpResponse, Responder,
-};
+use actix_web::{body::BoxBody, http::header::ContentType, HttpRequest, HttpResponse, Responder};
 use serde::Serialize;
 
-use super::models::{EmailListOutDTO, MailboxListOutDTO, EmailDetailOutDTO};
+use super::models::{EmailDetailOutDTO, EmailListOutDTO, MailboxListOutDTO};
 
 impl Responder for EmailDetailOutDTO {
     type Body = BoxBody;

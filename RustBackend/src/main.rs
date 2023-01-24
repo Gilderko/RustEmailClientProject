@@ -9,7 +9,10 @@ use actix_web::{
 };
 use constants::AUTH_COOKIE_NAME;
 use dotenv::dotenv;
-use handlers::{auth::auth::auth_config, email::{email_smtp::email_smtp_config, email_imap::email_imap_config}};
+use handlers::{
+    auth::auth::auth_config,
+    email::{email_imap::email_imap_config, email_smtp::email_smtp_config},
+};
 use imap::Session;
 use lettre::{AsyncSmtpTransport, Tokio1Executor};
 use native_tls::TlsStream;

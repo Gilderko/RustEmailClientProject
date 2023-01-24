@@ -5,7 +5,10 @@ use std::{
 
 use actix_multipart::Multipart;
 use actix_session::Session;
-use actix_web::{web::{self, Bytes}, Error, HttpResponse, Responder};
+use actix_web::{
+    web::{self, Bytes},
+    Error, HttpResponse, Responder,
+};
 use futures_util::{StreamExt, TryStreamExt};
 use lettre::{
     message::{
@@ -55,8 +58,7 @@ async fn send_email(mut payload: Multipart, session: Session) -> Result<HttpResp
             let bytes_result = if let Some(value) = field.next().await {
                 if let Ok(only_bytes) = value {
                     only_bytes
-                }
-                else {
+                } else {
                     Bytes::new()
                 }
             } else {

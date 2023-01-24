@@ -247,9 +247,9 @@ fn parse_body_structure(
                 bytes_start: 0,
                 bytes_end: 0,
                 is_email_text: false,
-                encoding: decide_encoding(other)
+                encoding: decide_encoding(other),
             };
-            
+
             modify_part_description(
                 body_matches,
                 match_index,
@@ -285,7 +285,7 @@ fn parse_body_structure(
                 bytes_start: 0,
                 bytes_end: 0,
                 is_email_text: false,
-                encoding: decide_encoding(other)
+                encoding: decide_encoding(other),
             };
 
             modify_part_description(
@@ -341,7 +341,7 @@ fn decide_encoding(other: &imap_proto::BodyContentSinglePart) -> EncodingType {
     let encoding = match other.transfer_encoding {
         imap_proto::ContentEncoding::SevenBit => EncodingType::SevenBit,
         imap_proto::ContentEncoding::Base64 => EncodingType::Base64,
-        _ => {EncodingType::Other},
+        _ => EncodingType::Other,
     };
     encoding
 }
@@ -416,23 +416,17 @@ async fn download_attachment_from_email(
         Some(description) => {
             let result_bytes =
                 &email_message_raw.text().unwrap()[description.bytes_start..description.bytes_end];
-            
+
             let decoded_bytes = match description.encoding {
-                EncodingType::SevenBit => {
-                    result_bytes.to_vec()
-                }
-                EncodingType::Base64 => {
-                    match data_encoding::BASE64_MIME.decode(result_bytes) {
-                        Ok(bytes) => bytes,
-                        Err(error) => {
-                            println!("Decoding error: {}", error);
-                            vec!()
-                        }
+                EncodingType::SevenBit => result_bytes.to_vec(),
+                EncodingType::Base64 => match data_encoding::BASE64_MIME.decode(result_bytes) {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        println!("Decoding error: {}", error);
+                        vec![]
                     }
-                }
-                EncodingType::Other => {
-                    result_bytes.to_vec()
-                }
+                },
+                EncodingType::Other => result_bytes.to_vec(),
             };
 
             let content_disposition = ContentDisposition {
