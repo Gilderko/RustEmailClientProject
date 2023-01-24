@@ -39,7 +39,7 @@ async fn get_email_in_detail_from_inbox(
     let mut imap_session = create_imap_session(
         &credentials.email,
         &credentials.password,
-        &("imap.gmail.com".to_string()),
+        &credentials.get_imap_string(),
     )
     .await
     .unwrap();
@@ -131,7 +131,7 @@ async fn delete_email_from_inbox(
     let mut imap_session = create_imap_session(
         &credentials.email,
         &credentials.password,
-        &("imap.gmail.com".to_string()),
+        &credentials.get_imap_string(),
     )
     .await
     .unwrap();
@@ -161,7 +161,7 @@ async fn list_emails_from_inbox(
     let mut imap_session = create_imap_session(
         &credentials.email,
         &credentials.password,
-        &("imap.gmail.com".to_string()),
+        &credentials.get_imap_string(),
     )
     .await
     .unwrap();
@@ -170,7 +170,7 @@ async fn list_emails_from_inbox(
     println!("Mailbox info: {:?}", mailbox_info);
 
     let start_number = mailbox_info.exists - request.requested_page_number * request.page_size;
-    let end_number = start_number - request.page_size;
+    let end_number = start_number - request.page_size + 1;
 
     let messages_raw = imap_session
         .fetch(
@@ -381,7 +381,7 @@ async fn download_attachment_from_email(
     let mut imap_session = create_imap_session(
         &credentials.email,
         &credentials.password,
-        &("imap.gmail.com".to_string()),
+        &credentials.get_imap_string(),
     )
     .await
     .unwrap();
@@ -449,7 +449,7 @@ async fn get_mailboxes(session: Session) -> impl Responder {
     let mut imap_session = create_imap_session(
         &credentials.email,
         &credentials.password,
-        &("imap.gmail.com".to_string()),
+        &credentials.get_imap_string(),
     )
     .await
     .unwrap();

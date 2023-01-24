@@ -5,7 +5,7 @@ use actix_web::{
 };
 
 use crate::{
-    constants::{AUTH_EMAIL_STRING, AUTH_PASSWORD_STRING},
+    constants::{AUTH_DOMAIN_STRING, AUTH_EMAIL_STRING, AUTH_PASSWORD_STRING},
     utils::utils_transports::{create_imap_session, create_smtp_transport},
 };
 
@@ -46,6 +46,12 @@ async fn sign_in(credentials: Json<SignInMessage>, session: Session) -> impl Res
         }
 
         result = session.insert(AUTH_PASSWORD_STRING, cred_values.password);
+        if let Err(error) = result {
+            return HttpResponse::Unauthorized()
+                .body(format!("Password add to session error: {}", error));
+        }
+
+        result = session.insert(AUTH_DOMAIN_STRING, cred_values.domain);
         if let Err(error) = result {
             return HttpResponse::Unauthorized()
                 .body(format!("Password add to session error: {}", error));
