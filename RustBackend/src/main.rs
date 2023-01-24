@@ -13,11 +13,7 @@ use handlers::{
     auth::auth::auth_config,
     email::{email_imap::email_imap_config, email_smtp::email_smtp_config},
 };
-use imap::Session;
-use lettre::{AsyncSmtpTransport, Tokio1Executor};
-use native_tls::TlsStream;
-use std::{env, net::TcpStream};
-use tokio::sync::Mutex;
+use std::env;
 use utils::auth_guards::AuthGuardFactory;
 
 mod constants;
@@ -30,7 +26,6 @@ async fn main() -> anyhow::Result<()> {
     let secret_key: Key = Key::derive_from(
         env::var("ENCRYPTION_KEY")
             .expect("ENCRYPTION_KEY must be set")
-            .to_string()
             .as_bytes(),
     );
 

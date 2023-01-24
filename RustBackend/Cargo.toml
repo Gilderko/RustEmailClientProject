@@ -1,5 +1,5 @@
 [package]
-name = "EmailClient"
+name = "email_client"
 version = "0.1.0"
 edition = "2021"
 

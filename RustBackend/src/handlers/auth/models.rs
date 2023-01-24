@@ -11,8 +11,4 @@ impl SignInMessage {
     pub fn get_imap_string(&self) -> String {
         format!("imap.{}", &self.domain)
     }
-
-    pub fn get_smtp_string(&self) -> String {
-        format!("smtp.{}", &self.domain)
-    }
 }

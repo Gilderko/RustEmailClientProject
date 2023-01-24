@@ -1,6 +1,3 @@
-use imap_proto::ContentEncoding;
-use serde::{Deserialize, Serialize};
-
 pub struct EmailAnalysis {
     pub plain_text_octets: u32,
     pub attachments: Vec<EmailPartDescription>,

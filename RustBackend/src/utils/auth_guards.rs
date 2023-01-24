@@ -4,7 +4,6 @@ use std::{
 };
 
 use actix_web::{
-    cookie::Cookie,
     dev::{self, Service, ServiceRequest, ServiceResponse, Transform},
     Error,
 };
@@ -55,7 +54,7 @@ where
     dev::forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        if let Some(_) = req.cookie(AUTH_COOKIE_NAME) {
+        if req.cookie(AUTH_COOKIE_NAME).is_some() {
             println!("Got cookie");
             let fut = self.service.call(req);
             Box::pin(async move { fut.await })
