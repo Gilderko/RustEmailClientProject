@@ -2,7 +2,10 @@ use std::{fs::read, io::Write};
 
 use actix_multipart::Multipart;
 use actix_session::Session;
-use actix_web::{web, Error, HttpResponse};
+use actix_web::{
+    web::{self, Bytes},
+    Error, HttpResponse,
+};
 use futures_util::{StreamExt, TryStreamExt};
 use lettre::{
     message::{header::ContentType, Attachment, MultiPart, SinglePart},
@@ -46,7 +49,15 @@ async fn send_email(mut payload: Multipart, session: Session) -> Result<HttpResp
                         .await??;
             }
         } else {
-            let field_value = field.next().await.unwrap()?;
+            let field_value = match field.next().await {
+                Some(Ok(only_bytes)) => only_bytes,
+                Some(Err(err)) => {
+                    eprintln!("Error: {:?}", err);
+                    Bytes::new()
+                }
+                None => Bytes::new(),
+            };
+
             match field.content_disposition().get_name().unwrap() {
                 "to_address" => {
                     println!("to_address");
@@ -74,12 +85,12 @@ async fn send_email(mut payload: Multipart, session: Session) -> Result<HttpResp
     );
 
     if !file_complete_path.is_empty() {
-        for path in file_complete_path.into_iter() {
-            let file_content = web::block(move || read(path.0)).await??;
-            let content_type_guess = mime_guess::from_path(&path.1);
+        for (path, name) in file_complete_path.into_iter() {
+            let file_content = web::block(move || read(path)).await??;
+            let content_type_guess = mime_guess::from_path(&name);
 
             body_total = body_total.singlepart(
-                Attachment::new(path.1).body(
+                Attachment::new(name).body(
                     file_content,
                     content_type_guess
                         .first_or_octet_stream()
