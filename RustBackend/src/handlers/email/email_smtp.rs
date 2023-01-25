@@ -98,8 +98,12 @@ async fn send_email(mut payload: Multipart, session: Session) -> Result<HttpResp
         .multipart(body_total)
         .unwrap();
 
-    if let Ok(session) =
-        create_smtp_transport(&sess_values.email, &sess_values.password, "smtp.gmail.com").await
+    if let Ok(session) = create_smtp_transport(
+        &sess_values.email,
+        &sess_values.password,
+        &sess_values.get_smtp_string(),
+    )
+    .await
     {
         session.send(email).await.unwrap();
     }
