@@ -1,20 +1,17 @@
 use std::{
-    fs::{read, File},
-    io::{Read, Write},
+    fs::read,
+    io::{Error, ErrorKind, Write},
 };
 
 use actix_multipart::Multipart;
 use actix_session::Session;
 use actix_web::{
     web::{self, Bytes},
-    Error, HttpResponse, Responder,
+    HttpResponse,
 };
 use futures_util::{StreamExt, TryStreamExt};
 use lettre::{
-    message::{
-        header::{self, ContentType},
-        Attachment, MultiPart, SinglePart, SinglePartBuilder,
-    },
+    message::{header::ContentType, Attachment, MultiPart, SinglePart},
     AsyncTransport, Message,
 };
 
@@ -38,51 +35,98 @@ async fn send_email(mut payload: Multipart, session: Session) -> Result<HttpResp
     let mut file_complete_path = Vec::new();
 
     // Iterate over multipart stream
-    while let Some(mut field) = payload.try_next().await? {
-        // Found a file
-        if let Some(file_name) = field.content_disposition().get_filename() {
-            let filepath = format!("./tmp/{}", file_name);
-            file_complete_path.push((filepath.clone(), file_name.to_string()));
+    while let Some(mut field) = payload.try_next().await.unwrap() {
+        match field.content_disposition().get_filename() {
+            // Found a file
+            Some(file_name) => {
+                let filepath = format!("./tmp/{}", file_name);
+                file_complete_path.push((filepath.clone(), file_name.to_string()));
 
-            // File::create is blocking operation, use threadpool
-            let mut file_created = web::block(|| std::fs::File::create(filepath)).await??;
+                let mut file_created;
 
-            // Field in turn is stream of *Bytes* object
-            while let Some(Ok(chunk)) = field.next().await {
-                // Filesystem operations are blocking, we have to use threadpool
-                file_created =
-                    web::block(move || file_created.write_all(&chunk).map(|_| file_created))
-                        .await??;
+                // File::create is blocking operation, use threadpool
+                match web::block(|| std::fs::File::create(filepath)).await {
+                    Ok(res) => match res {
+                        Ok(file) => file_created = file,
+                        Err(err) => {
+                            return Err(Error::new(
+                                ErrorKind::Other,
+                                format!("Creating file Error {:?}", err),
+                            ))
+                        }
+                    },
+                    Err(err) => {
+                        return Err(Error::new(
+                            ErrorKind::Other,
+                            format!("Creating file Blocking Error {:?}", err),
+                        ))
+                    }
+                };
+                // Field in turn is stream of *Bytes* object
+                while let Some(Ok(chunk)) = field.next().await {
+                    // Filesystem operations are blocking, we have to use threadpool
+                    match web::block(move || file_created.write_all(&chunk).map(|_| file_created))
+                        .await
+                    {
+                        Ok(res) => match res {
+                            Ok(file) => file_created = file,
+                            Err(err) => {
+                                return Err(Error::new(
+                                    ErrorKind::Other,
+                                    format!("Creating file Error {:?}", err),
+                                ))
+                            }
+                        },
+                        Err(err) => {
+                            return Err(Error::new(
+                                ErrorKind::Other,
+                                format!("Creating file Blocking Error {:?}", err),
+                            ))
+                        }
+                    }
+                }
             }
-        } else {
-            let bytes_result = if let Some(value) = field.next().await {
-                if let Ok(only_bytes) = value {
-                    only_bytes
-                } else {
-                    Bytes::new()
-                }
-            } else {
-                Bytes::new()
-            };
+            _ => {
+                let field_value = match field.next().await {
+                    Some(Ok(only_bytes)) => only_bytes,
+                    Some(Err(err)) => {
+                        eprintln!("Error: {:?}", err);
+                        Bytes::new()
+                    }
+                    None => Bytes::new(),
+                };
 
-            match field.content_disposition().get_name().unwrap() {
-                "to_address" => {
-                    println!("to_address");
-                    email_struct.to_address = String::from_utf8(bytes_result.to_vec()).unwrap()
+                let field_content_disposion_name = field.content_disposition().get_name();
+
+                if field_content_disposion_name.is_none() {
+                    return Err(Error::new(
+                        ErrorKind::Other,
+                        "couldnt parse name from field content disposion",
+                    ));
                 }
-                "subject" => {
-                    println!("subject");
-                    email_struct.subject = String::from_utf8(bytes_result.to_vec()).unwrap()
-                }
-                "body" => {
-                    println!("body");
-                    email_struct.body = String::from_utf8(bytes_result.to_vec()).unwrap()
-                }
-                result => {
-                    print!("Other name {}", result);
+
+                match field_content_disposion_name.unwrap() {
+                    "to_address" => {
+                        println!("to_address");
+                        email_struct.to_address = String::from_utf8(field_value.to_vec())
+                            .expect("coudlnt parse to_address from field");
+                    }
+                    "subject" => {
+                        println!("subject");
+                        email_struct.subject = String::from_utf8(field_value.to_vec())
+                            .expect("coudlnt parse subject from field");
+                    }
+                    "body" => {
+                        println!("body");
+                        email_struct.body = String::from_utf8(field_value.to_vec())
+                            .expect("coudlnt parse body from field");
+                    }
+                    other => {
+                        print!("Other name {}", other);
+                    }
                 }
             }
-        }
+        };
     }
 
     let mut body_total = MultiPart::mixed().singlepart(
@@ -92,39 +136,79 @@ async fn send_email(mut payload: Multipart, session: Session) -> Result<HttpResp
     );
 
     if !file_complete_path.is_empty() {
-        for path in file_complete_path.into_iter() {
-            let file_content = web::block(move || read(path.0)).await??;
-            let content_type_guess = mime_guess::from_path(&path.1);
+        for (path, name) in file_complete_path.into_iter() {
+            let file_content;
 
-            body_total = body_total.singlepart(
-                Attachment::new(path.1.clone()).body(
-                    file_content,
-                    content_type_guess
-                        .first_or_octet_stream()
-                        .to_string()
-                        .parse()
-                        .unwrap(),
-                ),
-            );
+            match web::block(move || read(path)).await {
+                Ok(res) => match res {
+                    Ok(content) => file_content = content,
+                    Err(err) => {
+                        return Err(Error::new(
+                            ErrorKind::Other,
+                            format!("Error reading file content {:?}", err),
+                        ))
+                    }
+                },
+                Err(err) => {
+                    return Err(Error::new(
+                        ErrorKind::Other,
+                        format!("Error reading file Blocking Error {:?}", err),
+                    ))
+                }
+            };
+
+            let content_type;
+
+            match mime_guess::from_path(&name)
+                .first_or_octet_stream()
+                .to_string()
+                .parse()
+            {
+                Ok(con_type) => content_type = con_type,
+                Err(err) => {
+                    return Err(Error::new(
+                        ErrorKind::Other,
+                        format!("Error parsing content_type (CotnentTypeErr) {:?}", err),
+                    ))
+                }
+            }
+
+            body_total =
+                body_total.singlepart(Attachment::new(name).body(file_content, content_type));
         }
     }
 
-    let email = Message::builder()
+    match Message::builder()
         .to(email_struct.to_address.parse().unwrap())
         .from(sess_values.email.parse().unwrap())
         .subject(email_struct.subject.to_string())
         .multipart(body_total)
-        .unwrap();
-
-    if let Ok(session) = create_smtp_transport(
-        &sess_values.email,
-        &sess_values.password,
-        &sess_values.get_smtp_string(),
-    )
-    .await
     {
-        session.send(email).await.unwrap();
-    }
+        Ok(message) => {
+            let session = create_smtp_transport(
+                &sess_values.email,
+                &sess_values.password,
+                &sess_values.get_smtp_string(),
+            )
+            .await
+            .unwrap();
+
+            let send_result = session.send(message).await;
+
+            if send_result.is_err() {
+                return Err(Error::new(
+                    ErrorKind::Other,
+                    format!("Couldnt build message {:?}", send_result.err()),
+                ));
+            }
+        }
+        Err(err) => {
+            return Err(Error::new(
+                ErrorKind::Other,
+                format!("Couldnt build message {:?}", err),
+            ))
+        }
+    };
 
     Ok(HttpResponse::Ok().body("Ok"))
 }

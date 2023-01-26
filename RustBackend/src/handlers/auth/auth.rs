@@ -24,8 +24,7 @@ async fn sign_in(credentials: Json<SignInMessage>, session: Session) -> impl Res
         create_smtp_transport(&cred_values.email, &cred_values.password, &smtp_domain).await;
 
     if let Err(smtp_error) = &smtp_session {
-        return HttpResponse::Unauthorized()
-            .body(format! {"SMTP error: {}",smtp_error.to_string()});
+        return HttpResponse::Unauthorized().body(format! {"SMTP error: {}",smtp_error});
     }
 
     // Enable IMAP session
@@ -33,8 +32,7 @@ async fn sign_in(credentials: Json<SignInMessage>, session: Session) -> impl Res
         create_imap_session(&cred_values.email, &cred_values.password, &imap_domain).await;
 
     if let Err(imap_error) = &imap_session {
-        return HttpResponse::Unauthorized()
-            .body(format! {"IMAP error: {}",imap_error.to_string()});
+        return HttpResponse::Unauthorized().body(format! {"IMAP error: {}",imap_error});
     }
 
     if let (Ok(mut imap), Ok(_)) = (imap_session, smtp_session) {
@@ -60,7 +58,15 @@ async fn sign_in(credentials: Json<SignInMessage>, session: Session) -> impl Res
         println!("Session status: {:?}", session.status());
         println!("Session entries: {:?}", session.entries());
 
-        imap.logout().unwrap();
+        match imap.logout() {
+            Ok(_) => {
+                println!("IMAP log-in successful");
+            }
+            Err(error) => {
+                println!("Error during IMAP logout: {:?}", error);
+                return HttpResponse::InternalServerError().body("Error during IMAP logout");
+            }
+        }
         HttpResponse::Ok().body("IMAP and SMTP sessions created")
     } else {
         HttpResponse::Unauthorized().body("Failed to establish sessions")

@@ -1,18 +1,12 @@
-use std::{
-    path::{Path, PathBuf},
-    vec,
-};
+use std::vec;
 
 use actix_session::Session;
 use actix_web::{
-    http::header::{
-        ContentDisposition, ContentEncoding, ContentType, DispositionParam, DispositionType,
-    },
-    web, Error, HttpRequest, HttpResponse, Responder,
+    http::header::{ContentDisposition, ContentEncoding, DispositionParam, DispositionType},
+    web, Error, HttpResponse, Responder,
 };
-use chrono::Utc;
 use imap::types::{Fetch, Flag};
-use regex::bytes::{Captures, Regex, RegexSet};
+use regex::bytes::Regex;
 
 use crate::{
     handlers::email::{
@@ -92,8 +86,8 @@ async fn get_email_in_detail_from_inbox(
 
     let mut response = EmailDetailOutDTO {
         from_address: sender,
-        subject: subject,
-        send_date: send_date,
+        subject,
+        send_date,
         body_text: String::new(),
         attachments: vec![],
     };
@@ -195,9 +189,9 @@ async fn list_emails_from_inbox(
 
         let message_out = EmailInspectOutDTO {
             from_address: sender,
-            subject: subject,
-            was_read: was_read,
-            send_date: send_date,
+            subject,
+            was_read,
+            send_date,
         };
 
         messages_out.push(message_out);
@@ -314,8 +308,7 @@ fn parse_body_structure(
         } => {
             println!("Multipart body structure");
             println!("BodyContentCommon: {:?}", common);
-            let mut part_index = 0;
-            for body in bodies {
+            for (part_index, body) in bodies.iter().enumerate() {
                 let boundary = if let Some(params) = &common.ty.params {
                     params.iter().find(|(desc, _)| *desc == "BOUNDARY")
                 } else {
@@ -331,19 +324,17 @@ fn parse_body_structure(
                         part_index,
                     );
                 }
-                part_index += 1;
             }
         }
     }
 }
 
 fn decide_encoding(other: &imap_proto::BodyContentSinglePart) -> EncodingType {
-    let encoding = match other.transfer_encoding {
+    match other.transfer_encoding {
         imap_proto::ContentEncoding::SevenBit => EncodingType::SevenBit,
         imap_proto::ContentEncoding::Base64 => EncodingType::Base64,
         _ => EncodingType::Other,
-    };
-    encoding
+    }
 }
 
 fn modify_part_description(
@@ -462,9 +453,7 @@ async fn get_mailboxes(session: Session) -> impl Responder {
         mailbox_names.push(mailbox.name().to_string());
     }
 
-    let response = MailboxListOutDTO { mailbox_names };
-
-    response
+    MailboxListOutDTO { mailbox_names }
 }
 
 pub fn email_imap_config(cfg: &mut web::ServiceConfig) {

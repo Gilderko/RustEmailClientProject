@@ -3,32 +3,6 @@
 version = 3
 
 [[package]]
-name = "EmailClient"
-version = "0.1.0"
-dependencies = [
- "actix-multipart",
- "actix-session",
- "actix-web",
- "anyhow",
- "async-trait",
- "chrono",
- "data-encoding",
- "dotenv",
- "futures-util",
- "imap",
- "imap-proto",
- "lettre 0.10.1",
- "lettre_email",
- "mime",
- "mime_guess",
- "native-tls",
- "regex",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "actix-codec"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -719,6 +693,32 @@ name = "email_address"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2153bd83ebc09db15bcbdc3e2194d901804952e3dc96967e1cd3b0c5c32d112"
+
+[[package]]
+name = "email_client"
+version = "0.1.0"
+dependencies = [
+ "actix-multipart",
+ "actix-session",
+ "actix-web",
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "data-encoding",
+ "dotenv",
+ "futures-util",
+ "imap",
+ "imap-proto",
+ "lettre 0.10.1",
+ "lettre_email",
+ "mime",
+ "mime_guess",
+ "native-tls",
+ "regex",
+ "serde",
+ "serde_json",
+ "tokio",
+]
 
 [[package]]
 name = "encoding"
