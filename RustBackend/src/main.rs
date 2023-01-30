@@ -29,6 +29,11 @@ async fn main() -> anyhow::Result<()> {
             .as_bytes(),
     );
 
+    let port = match env::var("PORT") {
+        Ok(number) => number.parse::<u16>()?,
+        Err(_) => 8080,
+    };
+
     HttpServer::new(move || {
         App::new()
             .wrap(
@@ -49,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
                     .wrap(AuthGuardFactory),
             )
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(("127.0.0.1", port))?
     .run()
     .await?;
 
