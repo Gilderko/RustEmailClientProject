@@ -1,3 +1,4 @@
+use actix_cors::Cors;
 use actix_session::{
     config::{CookieContentSecurity, PersistentSession},
     storage::CookieSessionStore,
@@ -36,6 +37,16 @@ async fn main() -> anyhow::Result<()> {
 
     HttpServer::new(move || {
         App::new()
+            .wrap(
+                Cors::default()
+                    .allow_any_origin()
+                    .allow_any_header()
+                    // .allowed_origin("http://localhost:5173/")
+                    .allowed_methods(vec!["GET", "POST", "DEL"])
+                    // .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT, http::header::ACCESS_CONTROL_ALLOW_ORIGIN])
+                    // .allowed_header(http::header::CONTENT_TYPE)
+                    .max_age(3600),
+            )
             .wrap(
                 SessionMiddleware::builder(CookieSessionStore::default(), secret_key.clone())
                     .cookie_secure(false)

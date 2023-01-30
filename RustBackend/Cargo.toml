@@ -26,3 +26,4 @@ regex = {version = "1.7.1"}
 mime_guess = "2.0.4"
 mime = "0.3.16"
 data-encoding = "2.3.3"
+actix-cors = "0.6.4"

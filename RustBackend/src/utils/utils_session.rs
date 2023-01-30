@@ -1,7 +1,7 @@
 use std::io::{Error, ErrorKind};
 
 use crate::{
-    constants::{AUTH_EMAIL_STRING, AUTH_PASSWORD_STRING, AUTH_DOMAIN_STRING},
+    constants::{AUTH_DOMAIN_STRING, AUTH_EMAIL_STRING, AUTH_PASSWORD_STRING},
     handlers::auth::models::SignInMessage,
 };
 use actix_session::Session;
