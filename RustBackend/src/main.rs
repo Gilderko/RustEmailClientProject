@@ -45,6 +45,7 @@ async fn main() -> anyhow::Result<()> {
                     .allowed_methods(vec!["GET", "POST", "DEL"])
                     // .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT, http::header::ACCESS_CONTROL_ALLOW_ORIGIN])
                     // .allowed_header(http::header::CONTENT_TYPE)
+                    .supports_credentials()
                     .max_age(3600),
             )
             .wrap(
