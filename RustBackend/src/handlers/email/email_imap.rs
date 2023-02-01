@@ -29,7 +29,7 @@ use utf7_imap::{decode_utf7_imap, encode_utf7_imap};
 
 async fn get_email_in_detail_from_inbox(
     session: Session,
-    request: web::Json<EmailDetailInDTO>,
+    request: web::Query<EmailDetailInDTO>,
 ) -> impl Responder {
     let credentials = check_is_valid_session(&session).unwrap();
     let mut imap_session = create_imap_session(
@@ -156,7 +156,7 @@ async fn delete_email_from_inbox(
 
 async fn list_emails_from_inbox(
     session: Session,
-    request: web::Json<EmailListInDTO>,
+    request: web::Query<EmailListInDTO>,
 ) -> impl Responder {
     let credentials = check_is_valid_session(&session).unwrap();
     let mut imap_session = create_imap_session(
@@ -373,7 +373,7 @@ fn modify_part_description(
 
 async fn download_attachment_from_email(
     session: Session,
-    request: web::Json<EmailAttachmentInDTO>,
+    request: web::Query<EmailAttachmentInDTO>,
 ) -> impl Responder {
     let credentials = check_is_valid_session(&session).unwrap();
     let mut imap_session = create_imap_session(
