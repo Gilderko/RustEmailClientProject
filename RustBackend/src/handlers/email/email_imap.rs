@@ -98,7 +98,10 @@ async fn get_email_in_detail_from_inbox(
     let sender = String::from_utf8(sender_bytes.to_vec()).unwrap_or_default()
         + "@"
         + &String::from_utf8(sender_host_bytes.to_vec()).unwrap_or_default();
-    let (_, subject) = encoded_word(subject_bytes).unwrap_or_default();
+    let (_, subject) = encoded_word(subject_bytes).unwrap_or((
+        subject_bytes,
+        String::from_utf8(subject_bytes.to_vec()).unwrap_or("Cant parse subject".to_string()),
+    ));
 
     let mut response = EmailDetailOutDTO {
         from_address: sender,
@@ -209,12 +212,7 @@ async fn list_emails_from_inbox(
             .mailbox
             .unwrap_or_default();
 
-        let sender_host_bytes = message
-            .envelope()
-            .unwrap()
-            .from
-            .as_ref()
-            .unwrap_or(&vec![])[0]
+        let sender_host_bytes = message.envelope().unwrap().from.as_ref().unwrap_or(&vec![])[0]
             .host
             .unwrap_or_default();
 
@@ -223,7 +221,11 @@ async fn list_emails_from_inbox(
         let sender = String::from_utf8(sender_bytes.to_vec()).unwrap_or_default()
             + "@"
             + &String::from_utf8(sender_host_bytes.to_vec()).unwrap_or_default();
-        let (_, subject) = encoded_word(subject_bytes).unwrap_or_default();
+        let (_, subject) = encoded_word(subject_bytes).unwrap_or((
+            subject_bytes,
+            String::from_utf8(subject_bytes.to_vec()).unwrap_or("Cant parse subject".to_string()),
+        ));
+
         let was_read = message.flags().contains(&Flag::Seen);
         let send_date = message.internal_date().unwrap_or_default().naive_utc();
 
