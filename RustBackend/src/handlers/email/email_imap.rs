@@ -1,4 +1,4 @@
-use std::vec;
+use std::{ops::Add, vec};
 
 use actix_session::Session;
 use actix_web::{
@@ -25,6 +25,7 @@ use super::{
     },
 };
 
+use rustyknife::rfc2047::encoded_word;
 use utf7_imap::{decode_utf7_imap, encode_utf7_imap};
 
 async fn get_email_in_detail_from_inbox(
@@ -41,7 +42,9 @@ async fn get_email_in_detail_from_inbox(
     .unwrap();
 
     println!("Request: {:?}", request);
-    imap_session.select(&encode_utf7_imap(request.mailbox_name.clone())).unwrap();
+    imap_session
+        .select(&encode_utf7_imap(request.mailbox_name.clone()))
+        .unwrap();
     let email_message_raw = &imap_session
         .fetch(
             format!("{}", request.sequence_number),
@@ -77,15 +80,26 @@ async fn get_email_in_detail_from_inbox(
         .mailbox
         .unwrap_or_default();
 
+    let sender_host_bytes = email_message_raw
+        .envelope()
+        .unwrap()
+        .from
+        .as_ref()
+        .unwrap_or(&vec![])[0]
+        .host
+        .unwrap_or_default();
+
     let subject_bytes = email_message_raw
         .envelope()
         .unwrap()
         .subject
         .unwrap_or_default();
 
-    let sender = String::from_utf8(sender_bytes.to_vec()).unwrap_or_default();
-    let subject = String::from_utf8(subject_bytes.to_vec()).unwrap_or_default();
-    println!("Subject: {:?}", subject_bytes.to_vec());
+    let sender = String::from_utf8(sender_bytes.to_vec()).unwrap_or_default()
+        + "@"
+        + &String::from_utf8(sender_host_bytes.to_vec()).unwrap_or_default();
+    let (_, subject) = encoded_word(subject_bytes).unwrap_or_default();
+
     let mut response = EmailDetailOutDTO {
         from_address: sender,
         subject,
@@ -99,12 +113,16 @@ async fn get_email_in_detail_from_inbox(
         .iter()
         .find(|attach| attach.is_email_text)
     {
-        let text_bytes = &email_message_raw.text().unwrap()[text_body.bytes_start..text_body.bytes_end];
+        let text_bytes =
+            &email_message_raw.text().unwrap()[text_body.bytes_start..text_body.bytes_end];
         response.body_text = match text_body.encoding {
             EncodingType::SevenBit => String::from_utf8(text_bytes.to_vec()).unwrap_or_default(),
-            EncodingType::Base64 => {
-                String::from_utf8(data_encoding::BASE64_MIME.decode(text_bytes).unwrap_or_default()).unwrap_or_default()
-            }
+            EncodingType::Base64 => String::from_utf8(
+                data_encoding::BASE64_MIME
+                    .decode(text_bytes)
+                    .unwrap_or_default(),
+            )
+            .unwrap_or_default(),
             EncodingType::Other => todo!(),
         }
     }
@@ -138,7 +156,9 @@ async fn delete_email_from_inbox(
     .unwrap();
 
     println!("Request: {:?}", request);
-    imap_session.select(&encode_utf7_imap(request.mailbox_name.clone())).unwrap();
+    imap_session
+        .select(&encode_utf7_imap(request.mailbox_name.clone()))
+        .unwrap();
     imap_session
         .store(
             format!(
@@ -167,7 +187,9 @@ async fn list_emails_from_inbox(
     .await
     .unwrap();
 
-    let mailbox_info = imap_session.select(&encode_utf7_imap(request.mailbox_name.clone())).unwrap();
+    let mailbox_info = imap_session
+        .select(&encode_utf7_imap(request.mailbox_name.clone()))
+        .unwrap();
     println!("Mailbox info: {:?}", mailbox_info);
 
     let start_number = mailbox_info.exists - request.requested_page_number * request.page_size;
@@ -187,10 +209,21 @@ async fn list_emails_from_inbox(
             .mailbox
             .unwrap_or_default();
 
+        let sender_host_bytes = message
+            .envelope()
+            .unwrap()
+            .from
+            .as_ref()
+            .unwrap_or(&vec![])[0]
+            .host
+            .unwrap_or_default();
+
         let subject_bytes = message.envelope().unwrap().subject.unwrap_or_default();
 
-        let sender = String::from_utf8(sender_bytes.to_vec()).unwrap_or_default();
-        let subject = String::from_utf8(subject_bytes.to_vec()).unwrap_or_default();
+        let sender = String::from_utf8(sender_bytes.to_vec()).unwrap_or_default()
+            + "@"
+            + &String::from_utf8(sender_host_bytes.to_vec()).unwrap_or_default();
+        let (_, subject) = encoded_word(subject_bytes).unwrap_or_default();
         let was_read = message.flags().contains(&Flag::Seen);
         let send_date = message.internal_date().unwrap_or_default().naive_utc();
 
@@ -384,7 +417,9 @@ async fn download_attachment_from_email(
     .await
     .unwrap();
 
-    imap_session.select(&encode_utf7_imap(request.mailbox_name.clone())).unwrap();
+    imap_session
+        .select(&encode_utf7_imap(request.mailbox_name.clone()))
+        .unwrap();
     let email_message_raw = &imap_session
         .fetch(
             format!("{}", request.sequence_number),
