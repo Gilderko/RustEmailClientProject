@@ -241,7 +241,7 @@ async fn list_emails_from_inbox(
 
     let response = EmailListOutDTO {
         total_emails_count: mailbox_info.exists,
-        requested_page_number: request.page_size,
+        requested_page_number: request.requested_page_number,
         page_size: request.page_size,
         emails: messages_out,
     };
