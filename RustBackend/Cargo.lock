@@ -734,6 +734,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "utf7-imap",
 ]
 
 [[package]]
@@ -2169,6 +2170,17 @@ dependencies = [
  "form_urlencoded",
  "idna 0.3.0",
  "percent-encoding",
+]
+
+[[package]]
+name = "utf7-imap"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e326365261fc2761f0809dfb6032810534a0427bbd8f0edf546f6afeef89f5d"
+dependencies = [
+ "base64 0.13.1",
+ "encoding_rs",
+ "regex",
 ]
 
 [[package]]

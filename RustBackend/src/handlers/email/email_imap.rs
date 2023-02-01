@@ -25,6 +25,8 @@ use super::{
     },
 };
 
+use utf7_imap::{decode_utf7_imap, encode_utf7_imap};
+
 async fn get_email_in_detail_from_inbox(
     session: Session,
     request: web::Json<EmailDetailInDTO>,
@@ -39,7 +41,7 @@ async fn get_email_in_detail_from_inbox(
     .unwrap();
 
     println!("Request: {:?}", request);
-    imap_session.select(&request.mailbox_name).unwrap();
+    imap_session.select(&encode_utf7_imap(request.mailbox_name.clone())).unwrap();
     let email_message_raw = &imap_session
         .fetch(
             format!("{}", request.sequence_number),
@@ -83,7 +85,7 @@ async fn get_email_in_detail_from_inbox(
 
     let sender = String::from_utf8(sender_bytes.to_vec()).unwrap_or_default();
     let subject = String::from_utf8(subject_bytes.to_vec()).unwrap_or_default();
-
+    println!("Subject: {:?}", subject_bytes.to_vec());
     let mut response = EmailDetailOutDTO {
         from_address: sender,
         subject,
@@ -97,9 +99,14 @@ async fn get_email_in_detail_from_inbox(
         .iter()
         .find(|attach| attach.is_email_text)
     {
-        let text_bytes =
-            &email_message_raw.text().unwrap()[text_body.bytes_start..text_body.bytes_end];
-        response.body_text = String::from_utf8_lossy(text_bytes).to_string();
+        let text_bytes = &email_message_raw.text().unwrap()[text_body.bytes_start..text_body.bytes_end];
+        response.body_text = match text_body.encoding {
+            EncodingType::SevenBit => String::from_utf8(text_bytes.to_vec()).unwrap_or_default(),
+            EncodingType::Base64 => {
+                String::from_utf8(data_encoding::BASE64_MIME.decode(text_bytes).unwrap_or_default()).unwrap_or_default()
+            }
+            EncodingType::Other => todo!(),
+        }
     }
 
     for attach_info in description.attachments {
@@ -131,7 +138,7 @@ async fn delete_email_from_inbox(
     .unwrap();
 
     println!("Request: {:?}", request);
-    imap_session.select(&request.mailbox_name).unwrap();
+    imap_session.select(&encode_utf7_imap(request.mailbox_name.clone())).unwrap();
     imap_session
         .store(
             format!(
@@ -160,7 +167,7 @@ async fn list_emails_from_inbox(
     .await
     .unwrap();
 
-    let mailbox_info = imap_session.select(&request.mailbox_name).unwrap();
+    let mailbox_info = imap_session.select(&encode_utf7_imap(request.mailbox_name.clone())).unwrap();
     println!("Mailbox info: {:?}", mailbox_info);
 
     let start_number = mailbox_info.exists - request.requested_page_number * request.page_size;
@@ -377,7 +384,7 @@ async fn download_attachment_from_email(
     .await
     .unwrap();
 
-    imap_session.select(&request.mailbox_name).unwrap();
+    imap_session.select(&encode_utf7_imap(request.mailbox_name.clone())).unwrap();
     let email_message_raw = &imap_session
         .fetch(
             format!("{}", request.sequence_number),
@@ -450,7 +457,7 @@ async fn get_mailboxes(session: Session) -> impl Responder {
 
     for mailbox in mailboxes.iter() {
         println!("Mailbox: {:?}", mailbox);
-        mailbox_names.push(mailbox.name().to_string());
+        mailbox_names.push(decode_utf7_imap(mailbox.name().to_string()));
     }
 
     MailboxListOutDTO { mailbox_names }
