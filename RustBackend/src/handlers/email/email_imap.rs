@@ -1,11 +1,11 @@
-use std::{ops::Add, vec};
+use std::{ops::Add, vec, cmp::{min, max}};
 
 use actix_session::Session;
 use actix_web::{
     http::header::{ContentDisposition, ContentEncoding, DispositionParam, DispositionType},
     web, Error, HttpResponse, Responder,
 };
-use imap::types::{Fetch, Flag};
+use imap::types::{Fetch, Flag, NameAttribute};
 use regex::bytes::Regex;
 
 use crate::{
@@ -195,8 +195,18 @@ async fn list_emails_from_inbox(
         .unwrap();
     println!("Mailbox info: {:?}", mailbox_info);
 
-    let start_number = mailbox_info.exists - request.requested_page_number * request.page_size;
-    let end_number = start_number - request.page_size + 1;
+    if mailbox_info.exists == 0
+    {
+        return EmailListOutDTO {
+            total_emails_count: mailbox_info.exists,
+            requested_page_number: request.requested_page_number,
+            page_size: request.page_size,
+            emails: vec!(),
+        };
+    }
+
+    let start_number = mailbox_info.exists - min(mailbox_info.exists, request.requested_page_number * request.page_size);
+    let end_number = start_number - min(start_number, request.page_size + 1);
 
     let messages_raw = imap_session
         .fetch(
@@ -495,7 +505,10 @@ async fn get_mailboxes(session: Session) -> impl Responder {
 
     for mailbox in mailboxes.iter() {
         println!("Mailbox: {:?}", mailbox);
-        mailbox_names.push(decode_utf7_imap(mailbox.name().to_string()));
+        if !mailbox.attributes().contains(&NameAttribute::NoSelect)
+        {
+            mailbox_names.push(decode_utf7_imap(mailbox.name().to_string()));
+        }
     }
 
     MailboxListOutDTO { mailbox_names }
