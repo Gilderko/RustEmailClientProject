@@ -29,6 +29,7 @@ pub struct EmailInspectOutDTO {
     pub subject: String,
     pub was_read: bool,
     pub send_date: NaiveDateTime,
+    pub sequnce_number: u32
 }
 
 #[derive(Serialize, Deserialize, Debug)]
