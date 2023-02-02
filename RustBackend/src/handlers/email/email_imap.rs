@@ -234,7 +234,7 @@ async fn list_emails_from_inbox(
             subject,
             was_read,
             send_date,
-            sequnce_number: message.message
+            sequence_number: message.message
         };
 
         messages_out.push(message_out);
