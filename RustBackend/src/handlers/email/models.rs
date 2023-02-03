@@ -63,7 +63,14 @@ pub struct EmailDetailAttachmentOutDTO {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MailboxListOutDTO {
-    pub mailbox_names: Vec<String>,
+    pub mailboxes: Vec<MailboxOutInfoDTO>,
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MailboxOutInfoDTO {
+    pub name: String,
+    pub emails_count: u32
 }
 
 #[derive(Serialize, Deserialize, Debug)]

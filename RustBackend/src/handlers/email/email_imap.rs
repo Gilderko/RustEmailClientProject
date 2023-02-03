@@ -21,7 +21,7 @@ use crate::{
 use super::{
     helper_models::EmailAnalysis,
     models::{
-        EmailAttachmentInDTO, EmailDeleteInDTO, EmailDetailInDTO, EmailListInDTO, MailboxListOutDTO,
+        EmailAttachmentInDTO, EmailDeleteInDTO, EmailDetailInDTO, EmailListInDTO, MailboxListOutDTO, MailboxOutInfoDTO,
     },
 };
 
@@ -206,8 +206,7 @@ async fn list_emails_from_inbox(
     }
 
     let start_number = mailbox_info.exists - min(mailbox_info.exists, request.requested_page_number * request.page_size);
-    let end_number = start_number - min(start_number, request.page_size + 1);
-
+    let end_number = start_number - min(start_number, request.page_size) + 1;
     let messages_raw = imap_session
         .fetch(
             format!("{}:{}", end_number, start_number),
@@ -458,7 +457,7 @@ async fn download_attachment_from_email(
         .iter()
         .find(|attachment| attachment.file_name == request.attachment_name);
 
-    match found_attachment {
+    let result_http_response = match found_attachment {
         Some(description) => {
             let result_bytes =
                 &email_message_raw.text().unwrap()[description.bytes_start..description.bytes_end];
@@ -487,7 +486,10 @@ async fn download_attachment_from_email(
                 .body(decoded_bytes)
         }
         None => HttpResponse::NotFound().body("404 Not Found"),
-    }
+    };
+
+    imap_session.logout().unwrap();
+    result_http_response
 }
 
 async fn get_mailboxes(session: Session) -> impl Responder {
@@ -501,17 +503,25 @@ async fn get_mailboxes(session: Session) -> impl Responder {
     .unwrap();
 
     let mailboxes = imap_session.list(None, Some("*")).unwrap();
-    let mut mailbox_names: Vec<String> = vec![];
+    let mut mailbox_names: Vec<MailboxOutInfoDTO> = vec![];
 
     for mailbox in mailboxes.iter() {
-        println!("Mailbox: {:?}", mailbox);
         if !mailbox.attributes().contains(&NameAttribute::NoSelect)
         {
-            mailbox_names.push(decode_utf7_imap(mailbox.name().to_string()));
+            let mailbox_info = imap_session
+                .examine(mailbox.name())
+                .unwrap();
+
+            let mailbox = MailboxOutInfoDTO {
+                name: decode_utf7_imap(mailbox.name().to_string()),
+                emails_count: mailbox_info.exists,
+            };
+            mailbox_names.push(mailbox);
         }
     }
 
-    MailboxListOutDTO { mailbox_names }
+    imap_session.logout().unwrap();
+    MailboxListOutDTO { mailboxes: mailbox_names }
 }
 
 pub fn email_imap_config(cfg: &mut web::ServiceConfig) {
