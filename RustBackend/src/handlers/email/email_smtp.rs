@@ -1,5 +1,5 @@
 use std::{
-    fs::read,
+    fs::{read, remove_file},
     io::{Error, ErrorKind, Write},
 };
 
@@ -39,6 +39,7 @@ async fn send_email(mut payload: Multipart, session: Session) -> Result<HttpResp
         match field.content_disposition().get_filename() {
             // Found a file
             Some(file_name) => {
+                println!("Got file {file_name}");
                 let filepath = format!("./tmp/{}", file_name);
                 file_complete_path.push((filepath.clone(), file_name.to_string()));
 
@@ -138,10 +139,13 @@ async fn send_email(mut payload: Multipart, session: Session) -> Result<HttpResp
     if !file_complete_path.is_empty() {
         for (path, name) in file_complete_path.into_iter() {
             let file_content;
-
+            let path_copy = path.clone();
             match web::block(move || read(path)).await {
                 Ok(res) => match res {
-                    Ok(content) => file_content = content,
+                    Ok(content) => {
+                        file_content = content;
+                        remove_file(path_copy);
+                    }
                     Err(err) => {
                         return Err(Error::new(
                             ErrorKind::Other,
@@ -172,7 +176,7 @@ async fn send_email(mut payload: Multipart, session: Session) -> Result<HttpResp
                     ))
                 }
             }
-
+            
             body_total =
                 body_total.singlepart(Attachment::new(name).body(file_content, content_type));
         }

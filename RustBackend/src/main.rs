@@ -53,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
                     .cookie_secure(false)
                     .cookie_http_only(false)
                     .cookie_content_security(CookieContentSecurity::Signed)
-                    .cookie_same_site(SameSite::None)
+                    .cookie_same_site(SameSite::Lax)
                     .session_lifecycle(PersistentSession::default().session_ttl(Duration::hours(2)))
                     .cookie_name(AUTH_COOKIE_NAME.to_string())
                     .build(),
