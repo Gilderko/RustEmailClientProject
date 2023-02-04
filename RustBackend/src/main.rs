@@ -5,7 +5,7 @@ use actix_session::{
     SessionMiddleware,
 };
 use actix_web::{
-    cookie::{time::Duration, Key},
+    cookie::{time::Duration, Key, SameSite},
     web, App, HttpResponse, HttpServer,
 };
 use constants::AUTH_COOKIE_NAME;
@@ -53,6 +53,7 @@ async fn main() -> anyhow::Result<()> {
                     .cookie_secure(false)
                     .cookie_http_only(false)
                     .cookie_content_security(CookieContentSecurity::Signed)
+                    .cookie_same_site(SameSite::None)
                     .session_lifecycle(PersistentSession::default().session_ttl(Duration::hours(2)))
                     .cookie_name(AUTH_COOKIE_NAME.to_string())
                     .build(),

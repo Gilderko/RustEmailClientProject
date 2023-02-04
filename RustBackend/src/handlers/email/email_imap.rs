@@ -195,7 +195,7 @@ async fn list_emails_from_inbox(
         .unwrap();
     println!("Mailbox info: {:?}", mailbox_info);
 
-    if mailbox_info.exists == 0
+    if mailbox_info.exists == 0 || mailbox_info.exists < request.requested_page_number * request.page_size
     {
         return EmailListOutDTO {
             total_emails_count: mailbox_info.exists,
@@ -503,7 +503,7 @@ async fn get_mailboxes(session: Session) -> impl Responder {
     .unwrap();
 
     let mailboxes = imap_session.list(None, Some("*")).unwrap();
-    let mut mailbox_names: Vec<MailboxOutInfoDTO> = vec![];
+    let mut mailbox_names = vec![];
 
     for mailbox in mailboxes.iter() {
         if !mailbox.attributes().contains(&NameAttribute::NoSelect)
