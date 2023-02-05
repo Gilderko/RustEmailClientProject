@@ -17,6 +17,7 @@ pub struct EmailListInDTO {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EmailListOutDTO {
+    pub mailbox_name: String,
     pub total_emails_count: u32,
     pub requested_page_number: u32,
     pub page_size: u32,
