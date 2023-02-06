@@ -42,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
                     .allow_any_origin()
                     .allow_any_header()
                     // .allowed_origin("http://localhost:5173/")
-                    .allowed_methods(vec!["GET", "POST", "DEL"])
+                    .allowed_methods(vec!["GET", "POST", "DELETE"])
                     // .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT, http::header::ACCESS_CONTROL_ALLOW_ORIGIN])
                     // .allowed_header(http::header::CONTENT_TYPE)
                     .supports_credentials()

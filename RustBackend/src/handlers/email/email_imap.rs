@@ -150,7 +150,7 @@ async fn get_email_in_detail_from_inbox(
 
 async fn delete_email_from_inbox(
     session: Session,
-    request: web::Json<EmailDeleteInDTO>,
+    request: web::Query<EmailDeleteInDTO>,
 ) -> Result<HttpResponse, Error> {
     let credentials = check_is_valid_session(&session).unwrap();
     let mut imap_session = create_imap_session(
