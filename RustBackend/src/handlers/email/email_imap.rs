@@ -6,6 +6,7 @@ use actix_web::{
     web, Error, HttpResponse, Responder,
 };
 use imap::types::{Fetch, Flag, NameAttribute};
+use quoted_printable::ParseMode;
 use regex::bytes::Regex;
 
 use crate::{
@@ -126,9 +127,11 @@ async fn get_email_in_detail_from_inbox(
                     .unwrap_or_default(),
             )
             .unwrap_or_default(),
-            EncodingType::Other => todo!(),
+            EncodingType::QuotedPrintable => String::from_utf8(quoted_printable::decode(text_bytes, ParseMode::Robust).unwrap_or_default().to_vec()).unwrap_or_default(),
+            EncodingType::Other => String::from_utf8_lossy(text_bytes).to_string(),
         }
     }
+    
 
     for attach_info in description.attachments {
         if attach_info.is_file {
@@ -303,6 +306,7 @@ fn parse_body_structure(
                 match_index,
                 &mut attachment_description,
                 common,
+                other
             );
 
             description.attachments.push(attachment_description);
@@ -318,6 +322,7 @@ fn parse_body_structure(
                 "BodyContentCommon: {:?}, BodyContentSinglePart: {:?}, Lines {}",
                 common, other, lines
             );
+            println!("Separator: {}", separator);
 
             let regex_string = format!(
                 r"{}(\r\n|\n)[\S\s]*?(\r\n|\n)(\r\n|\n)([\S\s]*?)(\r\n|\n)--",
@@ -341,6 +346,7 @@ fn parse_body_structure(
                 match_index,
                 &mut attachment_description,
                 common,
+                other
             );
 
             description.attachments.push(attachment_description)
@@ -387,6 +393,7 @@ fn decide_encoding(other: &imap_proto::BodyContentSinglePart) -> EncodingType {
     match other.transfer_encoding {
         imap_proto::ContentEncoding::SevenBit => EncodingType::SevenBit,
         imap_proto::ContentEncoding::Base64 => EncodingType::Base64,
+        imap_proto::ContentEncoding::QuotedPrintable => EncodingType::QuotedPrintable,
         _ => EncodingType::Other,
     }
 }
@@ -396,12 +403,17 @@ fn modify_part_description(
     match_index: usize,
     attachment_description: &mut EmailPartDescription,
     common: &imap_proto::BodyContentCommon,
+    single_part: &imap_proto::BodyContentSinglePart
 ) {
     if let Some(capture_match) = body_matches.nth(match_index) {
         if let Some(result_match) = capture_match.get(4) {
             attachment_description.bytes_start = result_match.start();
             attachment_description.bytes_end = result_match.end();
         }
+    }
+    else {
+        attachment_description.bytes_start = 0;
+        attachment_description.bytes_end = single_part.octets as usize;
     }
 
     if let Some(disposition) = &common.disposition {
@@ -473,7 +485,8 @@ async fn download_attachment_from_email(
                         vec![]
                     }
                 },
-                EncodingType::Other => result_bytes.to_vec(),
+                EncodingType::QuotedPrintable => quoted_printable::decode(result_bytes, ParseMode::Robust).unwrap_or_default().to_vec(),
+                EncodingType::Other => result_bytes.to_vec()
             };
 
             let content_disposition = ContentDisposition {

@@ -16,5 +16,6 @@ pub struct EmailPartDescription {
 pub enum EncodingType {
     SevenBit,
     Base64,
+    QuotedPrintable,
     Other,
 }
